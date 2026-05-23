@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glowing Background Emblem Shield -->
+    <path
+        android:fillColor="#1E2903"
+        android:strokeColor="#9CFF2E"
+        android:strokeWidth="2"
+        android:pathData="M 24,32 L 84,32 Q 88,58 54,82 Q 20,58 24,32 Z" />
+
+    <!-- Muscular Torso -->
+    <path
+        android:fillColor="#EEEEEE"
+        android:pathData="M 45,45 L 63,45 L 67,68 L 41,68 Z" />
+
+    <!-- Left Pectoral -->
+    <path
+        android:fillColor="#DDDDDD"
+        android:pathData="M 42,48 Q 47,46 52,50 Q 52,58 46,60 Q 40,56 42,48 Z" />
+
+    <!-- Right Pectoral -->
+    <path
+        android:fillColor="#DDDDDD"
+        android:pathData="M 66,48 Q 61,46 56,50 Q 56,58 62,60 Q 68,56 66,48 Z" />
+
+    <!-- Left Flexing Bicep (Wing) -->
+    <path
+        android:fillColor="#EEEEEE"
+        android:strokeColor="#CCCCCC"
+        android:strokeWidth="1.2"
+        android:pathData="M 42,52 Q 22,36 24,52 L 35,56 Z" />
+
+    <path
+        android:fillColor="#FF3D00"
+        android:pathData="M 28,47 A 3,3 0 1,1 28,53 A 3,3 0 1,1 28,47" /> <!-- Wristband Left -->
+
+    <!-- Right Flexing Bicep (Wing) -->
+    <path
+        android:fillColor="#EEEEEE"
+        android:strokeColor="#CCCCCC"
+        android:strokeWidth="1.2"
+        android:pathData="M 66,52 Q 86,36 84,52 L 73,56 Z" />
+
+    <path
+        android:fillColor="#FF3D00"
+        android:pathData="M 80,47 A 3,3 0 1,1 80,53 A 3,3 0 1,1 80,47" /> <!-- Wristband Right -->
+
+    <!-- Chicken Head -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,36 A 10,10 0 1,1 54,16 A 10,10 0 1,1 54,36" />
+
+    <!-- Red Athletic Rooster Comb -->
+    <path
+        android:fillColor="#FF3D00"
+        android:pathData="M 50,18 Q 44,8 48,10 Q 52,3 55,7 Q 60,9 56,18 Z" />
+
+    <!-- Beak -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M 51,34 L 57,34 L 54,42 Z" />
+
+    <!-- Red Wattle -->
+    <path
+        android:fillColor="#FF3D00"
+        android:pathData="M 52,38 Q 52,43 54,43 Q 56,43 56,38 Z" />
+
+    <!-- Badass Gym Sunglasses -->
+    <path
+        android:fillColor="#111111"
+        android:pathData="M 44,28 L 64,28 L 62,34 L 46,34 Z" />
+
+    <!-- Mirror Bridge & Highlight -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 48,30 L 51,30 L 50,32 L 47,32 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 57,30 L 60,30 L 59,32 L 56,32 Z" />
+</vector>
