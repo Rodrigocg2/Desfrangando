@@ -23,6 +23,10 @@ class WorkoutRepository(private val workoutDao: WorkoutDao) {
         workoutDao.deleteSavedWorkoutById(id)
     }
 
+    suspend fun deleteAllWorkouts() {
+        workoutDao.deleteAllSavedWorkouts()
+    }
+
     suspend fun saveHistory(history: WorkoutHistory) {
          workoutDao.insertWorkoutHistory(history)
     }

@@ -16,6 +16,16 @@ import com.example.viewmodel.WorkoutViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val file = java.io.File(cacheDir, "crash_log.txt")
+                file.appendText("CRASH in ${thread.name}: ${throwable.stackTraceToString()}\n")
+            } catch (e: Exception) {}
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+        
         enableEdgeToEdge()
         setContent {
             val viewModel: WorkoutViewModel = viewModel()

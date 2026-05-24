@@ -19,6 +19,9 @@ interface WorkoutDao {
     @Query("DELETE FROM saved_workouts WHERE id = :id")
     suspend fun deleteSavedWorkoutById(id: String)
 
+    @Query("DELETE FROM saved_workouts")
+    suspend fun deleteAllSavedWorkouts()
+
     @Query("SELECT * FROM workout_history ORDER BY dateCompleted DESC")
     fun getWorkoutHistory(): Flow<List<WorkoutHistory>>
 

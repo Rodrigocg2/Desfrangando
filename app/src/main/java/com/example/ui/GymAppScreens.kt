@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -60,7 +62,7 @@ import java.util.*
 @Composable
 fun GymAppRoot(viewModel: WorkoutViewModel) {
     // Current Active Tab
-    var currentTab by remember { mutableStateOf("GENERATOR") } // GENERATOR, WORKOUTS, VIDEOS, HISTORY
+    var currentTab by remember { mutableStateOf("GENERATOR") } // GENERATOR, WORKOUTS, EXPLORE, HISTORY
     
     // States from ViewModel
     val activeWorkout by viewModel.activeWorkout.collectAsState()
@@ -90,7 +92,7 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
                         val tabs = listOf<Triple<String, String, ImageVector>>(
                             Triple("GENERATOR", "Gerar AI", Icons.Default.AutoAwesome),
                             Triple("WORKOUTS", "Meus Treinos", Icons.AutoMirrored.Outlined.ListAlt),
-                            Triple("VIDEOS", "Vídeos Pro", Icons.Default.FitnessCenter),
+                            Triple("EXPLORE", "Comunidade", Icons.Default.Public),
                             Triple("HISTORY", "Histórico", Icons.Default.History),
                             Triple("PROFILE", "Perfil", Icons.Default.Person)
                         )
@@ -134,7 +136,7 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
                         when (tab) {
                             "GENERATOR" -> WorkoutGeneratorScreen(viewModel = viewModel, onNavigateToWorkouts = { currentTab = "WORKOUTS" })
                             "WORKOUTS" -> SavedWorkoutsListScreen(viewModel = viewModel, onNavigateToGenerator = { currentTab = "GENERATOR" })
-                            "VIDEOS" -> VideoExecutionEncyclopediaScreen(viewModel = viewModel)
+                            "EXPLORE" -> CommunityExploreScreen(viewModel = viewModel)
                             "HISTORY" -> WorkoutHistoryLogsScreen(viewModel = viewModel)
                             "PROFILE" -> UserProfileScreen(viewModel = viewModel)
                         }
@@ -854,17 +856,21 @@ fun WorkoutGeneratorScreen(
 // 2. --- MY SAVED WORKOUTS SCREEN ---
 
 @Composable
-@Composable
 fun SavedWorkoutsListScreen(
     viewModel: WorkoutViewModel,
     onNavigateToGenerator: () -> Unit
 ) {
     val savedWorkouts by viewModel.savedWorkouts.collectAsState()
     
+    var showMultiDayCreator by remember { mutableStateOf(false) }
     var showManualCreator by remember { mutableStateOf(false) }
     var workoutToEditByManualCreator by remember { mutableStateOf<SavedWorkout?>(null) }
     var workoutToEditProperties by remember { mutableStateOf<SavedWorkout?>(null) }
     var workoutToShare by remember { mutableStateOf<SavedWorkout?>(null) }
+    var routineToShare by remember { mutableStateOf<com.example.model.RoutineCategory?>(null) }
+    var showDeleteAllConfirmation by remember { mutableStateOf(false) }
+    var showNewTabDialog by remember { mutableStateOf(false) }
+    var tabToEdit by remember { mutableStateOf<com.example.model.RoutineCategory?>(null) }
 
     val sortedWorkouts = remember(savedWorkouts) {
         savedWorkouts.sortedWith(
@@ -873,14 +879,24 @@ fun SavedWorkoutsListScreen(
         )
     }
 
-    if (showManualCreator) {
+    if (showMultiDayCreator) {
+        val currentTabForNewRoutine = viewModel.activeTab.collectAsState().value
+        MultiDayRoutineCreatorScreen(
+            availableExercises = viewModel.repository.referenceExercises,
+            activeTabName = currentTabForNewRoutine,
+            onDismiss = { showMultiDayCreator = false },
+            onSaveRoutine = { workouts ->
+                viewModel.saveManualRoutine(workouts)
+                showMultiDayCreator = false
+            }
+        )
+    } else if (showManualCreator) {
         ManualWorkoutCreatorScreen(
             initialWorkout = workoutToEditByManualCreator,
+            availableExercises = viewModel.repository.referenceExercises,
             onDismiss = { showManualCreator = false },
             onSave = { title, category, emoji, colorHex, splitType, focus, exercises ->
-                val moshi = com.squareup.moshi.Moshi.Builder()
-                    .addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory())
-                    .build()
+                val moshi = com.squareup.moshi.Moshi.Builder().build()
                 val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
                 val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
                 val exercisesJson = adapter.toJson(exercises) ?: "[]"
@@ -927,24 +943,223 @@ fun SavedWorkoutsListScreen(
                         color = TextPrimary
                     )
                 }
-                Button(
-                    onClick = {
-                        workoutToEditByManualCreator = null
-                        showManualCreator = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text("CRIAR TREINO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (sortedWorkouts.isNotEmpty()) {
+                        IconButton(
+                            onClick = { showDeleteAllConfirmation = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Apagar todos", tint = Color.Red, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            workoutToEditByManualCreator = null
+                            showMultiDayCreator = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text("CRIAR TREINO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
+                        }
                     }
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
+            
+            val tabs by viewModel.tabs.collectAsState()
+            val activeTab by viewModel.activeTab.collectAsState()
 
-            if (sortedWorkouts.isEmpty()) {
+            @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(tabs, key = { it.id }) { tab ->
+                    val isSelected = activeTab == tab.name
+                    val parsedColor = try { Color(android.graphics.Color.parseColor(tab.colorHex)) } catch(e: Exception) { ToxicGreen }
+                    Box(
+                        modifier = Modifier
+                            .background(if (isSelected) parsedColor else CarbonSurface, RoundedCornerShape(16.dp))
+                            .border(1.dp, if (isSelected) parsedColor else BorderDark, RoundedCornerShape(16.dp))
+                            .combinedClickable(
+                                onClick = { viewModel.switchActiveTab(tab.name) },
+                                onLongClick = { tabToEdit = tab }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text("${tab.emoji} ${tab.name}", color = if (isSelected) Color.Black else TextMuted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+                item {
+                    OutlinedButton(
+                        onClick = { showNewTabDialog = true },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, BorderDark),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("+ Nova Aba", fontSize = 14.sp)
+                    }
+                }
+            }
+
+            val filteredWorkouts = remember(sortedWorkouts, activeTab, tabs) {
+                sortedWorkouts.filter {
+                    it.category == activeTab || 
+                    (activeTab == tabs.firstOrNull()?.name && (it.category.isBlank() || it.isFavorite)) ||
+                    (activeTab == "Favorito" && it.isFavorite)
+                }
+            }
+
+            val cycleIds by viewModel.currentCycleWorkoutIds.collectAsState()
+            val cycleIndex by viewModel.currentCycleIndex.collectAsState()
+            val totalCompleted by viewModel.cycleTotalWorkoutsCompleted.collectAsState()
+            val currentStreak by viewModel.currentStreak.collectAsState()
+            
+            if (cycleIds.isNotEmpty() && filteredWorkouts.isNotEmpty()) {
+                val cycleTitle = "Ciclo Atual (Progresso 90 Dias)"
+                // Text(cycleTitle, style = MaterialTheme.typography.titleMedium, color = TechCyan)
+                // Spacer(modifier = Modifier.height(8.dp))
+                
+                val totalDays = 90
+                val percent = if (totalDays > 0) (totalCompleted.toFloat() / totalDays.toFloat()).coerceIn(0f, 1f) else 0f
+                val daysLeft = (totalDays - totalCompleted).coerceAtLeast(0)
+                
+                if (daysLeft == 0) {
+                     Card(
+                         colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                         border = BorderStroke(1.dp, ToxicGreen),
+                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                     ) {
+                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                             Text("Seu ciclo foi concluído!", color = ToxicGreen, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                             Spacer(modifier = Modifier.height(8.dp))
+                             Text("Você avançou expressivamente durante os $totalDays dias, alcançando um novo patamar de condicionamento.", color = TextMuted, textAlign = TextAlign.Center, fontSize = 12.sp)
+                             Spacer(modifier = Modifier.height(16.dp))
+                             Button(
+                                 onClick = { onNavigateToGenerator() },
+                                 colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                 modifier = Modifier.fillMaxWidth()
+                             ) {
+                                 Text("GERAR NOVO CICLO", fontWeight = FontWeight.Bold)
+                             }
+                         }
+                     }
+                } else {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                        border = BorderStroke(1.dp, ToxicGreen),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("🔥 STREAK: $currentStreak Dias", color = ToxicGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("$daysLeft DIAS RESTANTES", color = TechCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Progress bar
+                            LinearProgressIndicator(
+                                progress = { percent },
+                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                                color = ToxicGreen,
+                                trackColor = Color.DarkGray
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Progresso 90 Dias", color = TextMuted, fontSize = 10.sp)
+                                Text("${(percent * 100).toInt()}%", color = TextMuted, fontSize = 10.sp)
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                            
+                            Text("TREINO DE HOJE", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            
+                            val currentWorkoutId = cycleIds.getOrNull(cycleIndex)
+                            val currentWorkout = filteredWorkouts.find { it.id == currentWorkoutId }
+                            if (currentWorkout != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(currentWorkout.emoji, fontSize = 24.sp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(currentWorkout.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text("${currentWorkout.splitType} • ${currentWorkout.focus}", color = TextMuted, fontSize = 12.sp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.startWorkoutSession(currentWorkout) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("INICIAR TREINO", fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { viewModel.previousWorkoutCycle() },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                        border = BorderStroke(1.dp, Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("VOLTAR", fontSize = 12.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    OutlinedButton(
+                                        onClick = { viewModel.skipWorkoutCycle() },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                        border = BorderStroke(1.dp, Color.DarkGray),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("PULAR", fontSize = 12.sp)
+                                    }
+                                }
+                            } else {
+                                Text("Treino não encontrado.", color = TextMuted)
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider(color = Color.DarkGray)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("PRÓXIMOS TREINOS DA ROTINA", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Highlight sequence 
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                cycleIds.forEachIndexed { i, id ->
+                            val wk = filteredWorkouts.find { it.id == id }
+                                    val isCurrent = (i == cycleIndex)
+                                    val isPassed = (i < cycleIndex)
+                                    val colorActive = if(isCurrent) ToxicGreen else if (isPassed) Color.DarkGray else Color.DarkGray
+                                    val textColor = if(isCurrent) Color.Black else Color.White
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 4.dp)
+                                            .background(colorActive, RoundedCornerShape(6.dp))
+                                            .border(1.dp, if(isCurrent) ToxicGreen else Color.DarkGray, RoundedCornerShape(6.dp))
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(wk?.title?.take(1) ?: "?", color = textColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (filteredWorkouts.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -983,7 +1198,7 @@ fun SavedWorkoutsListScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    items(sortedWorkouts, key = { it.id }) { workout ->
+                    items(filteredWorkouts, key = { it.id }) { workout ->
                         SavedWorkoutCard(
                             workout = workout,
                             onStart = { viewModel.startWorkoutSession(workout) },
@@ -1019,6 +1234,225 @@ fun SavedWorkoutsListScreen(
         ShareWorkoutDialog(
             workout = workout,
             onDismiss = { workoutToShare = null }
+        )
+    }
+
+    routineToShare?.let { tab ->
+        val wkCount = savedWorkouts.count { it.category == tab.name }
+        ShareRoutineDialog(
+            tab = tab,
+            workoutCount = wkCount,
+            savedWorkouts = savedWorkouts.filter { it.category == tab.name },
+            onDismiss = { routineToShare = null }
+        )
+    }
+
+    if (showDeleteAllConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteAllConfirmation = false },
+            title = { Text("Apagar Todos", color = Color.White) },
+            text = { Text("Tem certeza de que deseja apagar todos os treinos? Esta ação não pode ser desfeita.", color = Color.LightGray) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteAllWorkouts()
+                    showDeleteAllConfirmation = false
+                }) {
+                    Text("APAGAR", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllConfirmation = false }) {
+                    Text("CANCELAR", color = Color.LightGray)
+                }
+            },
+            containerColor = CarbonCard
+        )
+    }
+
+    if (showNewTabDialog) {
+        var newName by remember { mutableStateOf("") }
+        var newEmoji by remember { mutableStateOf("📁") }
+        var newColorHex by remember { mutableStateOf("#8B5CF6") }
+
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showNewTabDialog = false },
+            title = { Text("Nova Aba", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("Nome da Aba") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newEmoji,
+                            onValueChange = { newEmoji = it },
+                            label = { Text("Emoji") },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        OutlinedTextField(
+                            value = newColorHex,
+                            onValueChange = { newColorHex = it },
+                            label = { Text("Cor (Hex)") },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newName.isNotBlank()) {
+                        viewModel.addTab(com.example.model.RoutineCategory(name = newName, emoji = newEmoji, colorHex = newColorHex))
+                    }
+                    showNewTabDialog = false
+                }) {
+                    Text("CRIAR ABA", color = ToxicGreen, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewTabDialog = false }) {
+                    Text("CANCELAR", color = Color.LightGray)
+                }
+            },
+            containerColor = CarbonCard
+        )
+    }
+
+    tabToEdit?.let { tab ->
+        var editName by remember { mutableStateOf(tab.name) }
+        var editEmoji by remember { mutableStateOf(tab.emoji) }
+        var editColorHex by remember { mutableStateOf(tab.colorHex) }
+
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { tabToEdit = null },
+            title = { Text("Editar Aba", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Nome da Aba") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = editEmoji,
+                            onValueChange = { editEmoji = it },
+                            label = { Text("Emoji") },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        OutlinedTextField(
+                            value = editColorHex,
+                            onValueChange = { editColorHex = it },
+                            label = { Text("Cor (Hex)") },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+                    val tabsList by viewModel.tabs.collectAsState()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Posição", color = Color.White, fontSize = 14.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { 
+                                    val idx = tabsList.indexOfFirst { it.id == tab.id }
+                                    if (idx > 0) viewModel.reorderTabs(idx, idx - 1)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(36.dp),
+                                border = BorderStroke(1.dp, Color.DarkGray)
+                            ) { Text("<", color = Color.White, fontSize = 16.sp) }
+                            
+                            OutlinedButton(
+                                onClick = { 
+                                    val idx = tabsList.indexOfFirst { it.id == tab.id }
+                                    if (idx != -1 && idx < tabsList.size - 1) viewModel.reorderTabs(idx, idx + 1)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(36.dp),
+                                border = BorderStroke(1.dp, Color.DarkGray)
+                            ) { Text(">", color = Color.White, fontSize = 16.sp) }
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            routineToShare = tab
+                            tabToEdit = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Text("COMPARTILHAR", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                viewModel.duplicateTabAndWorkouts(tab, savedWorkouts)
+                                tabToEdit = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CarbonSurface, contentColor = TechCyan),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("DUPLICAR", fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.removeTab(tab.id)
+                                tabToEdit = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red, contentColor = Color.White),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("APAGAR", fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (editName.isNotBlank()) {
+                        viewModel.updateTab(tab.copy(name = editName, emoji = editEmoji, colorHex = editColorHex))
+                    }
+                    tabToEdit = null
+                }) {
+                    Text("SALVAR", color = ToxicGreen, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { tabToEdit = null }) {
+                    Text("CANCELAR", color = Color.LightGray)
+                }
+            },
+            containerColor = CarbonCard
         )
     }
 }
@@ -1545,10 +1979,17 @@ fun VideoExecutionEncyclopediaScreen(viewModel: WorkoutViewModel) {
 
 // 4. --- WORKOUT HISTORY SCREEN ---
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun WorkoutHistoryLogsScreen(viewModel: WorkoutViewModel) {
     val history by viewModel.workoutHistory.collectAsState()
+    val savedWorkouts by viewModel.savedWorkouts.collectAsState()
     val sdf = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+    val moshiAdapter = remember {
+        val moshi = com.squareup.moshi.Moshi.Builder().build()
+        val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, com.example.model.ExerciseCompletion::class.java)
+        moshi.adapter<List<com.example.model.ExerciseCompletion>>(listType)
+    }
 
     Column(
         modifier = Modifier
@@ -1639,6 +2080,29 @@ fun WorkoutHistoryLogsScreen(viewModel: WorkoutViewModel) {
             // History rows
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(history) { log ->
+                    val relatedWorkout = savedWorkouts.find { it.id == log.workoutId }
+                    val musclePercents = remember(log, relatedWorkout) {
+                        val map = mutableMapOf<String, Int>()
+                        if (relatedWorkout != null) {
+                            val exercises = relatedWorkout.getExercises()
+                            val completions = try { moshiAdapter.fromJson(log.completionJson) ?: emptyList() } catch(e: Exception) { emptyList() }
+                            
+                            val muscleGroups = exercises.map { it.muscleGroup }.distinct()
+                            for (group in muscleGroups) {
+                                val groupExs = exercises.filter { it.muscleGroup == group }
+                                val plannedSets = groupExs.sumOf { it.sets }
+                                
+                                val completedSets = completions.filter { comp ->
+                                    groupExs.any { it.exerciseId == comp.exerciseId }
+                                }.sumOf { (it.setsCompleted ?: emptyList()).size }
+                                
+                                val percent = if (plannedSets > 0) (completedSets.toFloat() / plannedSets.toFloat() * 100).toInt() else 0
+                                map[group] = percent.coerceIn(0, 100)
+                            }
+                        }
+                        map
+                    }
+
                     Card(
                         colors = CardDefaults.cardColors(containerColor = CarbonSurface),
                         border = BorderStroke(1.dp, BorderDark),
@@ -1670,6 +2134,27 @@ fun WorkoutHistoryLogsScreen(viewModel: WorkoutViewModel) {
                             ) {
                                 Text("Vol: ${String.format(Locale.US, "%.0f kg", log.totalVolumeKg)}", fontSize = 12.sp, color = ElectricOrange, fontFamily = TechMonospace, fontWeight = FontWeight.Bold)
                                 Text("Duração: ${log.durationMinutes} min", fontSize = 12.sp, color = TextPrimary)
+                            }
+                            
+                            if (musclePercents.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                                ) {
+                                    musclePercents.forEach { (muscle, pct) ->
+                                        val cTint = if (pct >= 80) ToxicGreen else if (pct >= 50) ElectricOrange else Color.Gray
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(bottom = 6.dp)
+                                                .background(cTint.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                                .border(1.dp, cTint.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("$muscle: $pct%", color = cTint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -4761,440 +5246,135 @@ fun LoginEntranceScreen(
     viewModel: WorkoutViewModel,
     onBypass: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var showLocalAccountChooser by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFEBEAEF), // Light concrete wall base top
-                        Color(0xFFDBDAE0), // Medium light concrete wall base mid
-                        Color(0xFFCAC9CD)  // Light concrete floor base bottom
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
-        // High-Fidelity Gym Concrete Background Canvas
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            if (w <= 0f || h <= 0f) return@Canvas
-            
-            // 1. Draw Simulated Concrete Panel Lines
-            val floorY = h * 0.82f
-            val p1 = floorY * 0.33f
-            val p2 = floorY * 0.66f
-            
-            // Wall vertical panel joint
-            drawLine(
-                color = Color.Black.copy(alpha = 0.12f),
-                start = androidx.compose.ui.geometry.Offset(w * 0.5f, 0f),
-                end = androidx.compose.ui.geometry.Offset(w * 0.5f, floorY),
-                strokeWidth = 2f
-            )
-            
-            // Horizontal wall panel joints
-            drawLine(
-                color = Color.Black.copy(alpha = 0.12f),
-                start = androidx.compose.ui.geometry.Offset(0f, p1),
-                end = androidx.compose.ui.geometry.Offset(w, p1),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.White.copy(alpha = 0.45f),
-                start = androidx.compose.ui.geometry.Offset(0f, p1 + 2f),
-                end = androidx.compose.ui.geometry.Offset(w, p1 + 2f),
-                strokeWidth = 1f
-            )
-            
-            drawLine(
-                color = Color.Black.copy(alpha = 0.12f),
-                start = androidx.compose.ui.geometry.Offset(0f, p2),
-                end = androidx.compose.ui.geometry.Offset(w, p2),
-                strokeWidth = 2f
-            )
-            drawLine(
-                color = Color.White.copy(alpha = 0.45f),
-                start = androidx.compose.ui.geometry.Offset(0f, p2 + 2f),
-                end = androidx.compose.ui.geometry.Offset(w, p2 + 2f),
-                strokeWidth = 1f
-            )
-            
-            // Floor ground joint seam
-            drawLine(
-                color = Color.Black.copy(alpha = 0.25f),
-                start = androidx.compose.ui.geometry.Offset(0f, floorY),
-                end = androidx.compose.ui.geometry.Offset(w, floorY),
-                strokeWidth = 4f
-            )
-            drawLine(
-                color = Color.White.copy(alpha = 0.5f),
-                start = androidx.compose.ui.geometry.Offset(0f, floorY + 2f),
-                end = androidx.compose.ui.geometry.Offset(w, floorY + 2f),
-                strokeWidth = 1f
-            )
-            
-            // Isometric floor concrete slab lines
-            val numFloorSlabs = 3
-            for (i in 0..numFloorSlabs) {
-                val startX = w * (0.15f + i * 0.34f)
-                val endX = w * (-0.1f + i * 0.6f)
-                drawLine(
-                    color = Color.Black.copy(alpha = 0.18f),
-                    start = androidx.compose.ui.geometry.Offset(startX, floorY),
-                    end = androidx.compose.ui.geometry.Offset(endX, h),
-                    strokeWidth = 2f
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.4f),
-                    start = androidx.compose.ui.geometry.Offset(startX + 1f, floorY),
-                    end = androidx.compose.ui.geometry.Offset(endX + 2f, h),
-                    strokeWidth = 1f
-                )
-            }
-            
-            // Subtle distress stains
-            drawCircle(
-                color = Color.Black.copy(alpha = 0.04f),
-                radius = 150f,
-                center = androidx.compose.ui.geometry.Offset(w * 0.25f, h * 0.2f)
-            )
-            drawCircle(
-                color = Color.White.copy(alpha = 0.15f),
-                radius = 90f,
-                center = androidx.compose.ui.geometry.Offset(w * 0.75f, h * 0.45f)
-            )
-            
-            // Soft center spotlight radial light gradient to make the central column shine
-            drawCircle(
-                brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                    colors = listOf(Color.White.copy(alpha = 0.55f), Color.Transparent),
-                    center = androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.44f),
-                    radius = w * 0.75f
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.bg_desfrangando_imagem),
+            contentDescription = "Background",
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        // Leve dark overlay transparente para melhorar leitura
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+        
+        // Glow roxo leve + Gradiente escuro suave nas bordas (fundo bottom fade)
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF9E00FF).copy(alpha = 0.15f), // Glow roxo leve no topo
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.8f),
+                        Color.Black
+                    ),
+                    startY = 0f,
+                    endY = Float.POSITIVE_INFINITY
                 )
             )
-            
-            // 2. Metallic Dumbbell Rack at the top
-            val rackY = h * 0.05f
-            drawLine(
-                color = Color(0xFF141316),
-                start = androidx.compose.ui.geometry.Offset(0f, rackY),
-                end = androidx.compose.ui.geometry.Offset(w, rackY),
-                strokeWidth = 10f
-            )
-            drawLine(
-                color = Color(0xFF222125),
-                start = androidx.compose.ui.geometry.Offset(0f, rackY + 16f),
-                end = androidx.compose.ui.geometry.Offset(w, rackY + 16f),
-                strokeWidth = 6f
-            )
-            
-            // Vertical legs of dumbbell rack
-            for (fX in listOf(w * 0.2f, w * 0.5f, w * 0.8f)) {
-                drawLine(
-                    color = Color(0xFF100F12),
-                    start = androidx.compose.ui.geometry.Offset(fX, 0f),
-                    end = androidx.compose.ui.geometry.Offset(fX + 12f, rackY + 24f),
-                    strokeWidth = 8f
-                )
-            }
-            
-            // Rested dumbbells on the rack
-            val dbSpacing = w * 0.14f
-            val numDumbbells = 7
-            for (i in 0 until numDumbbells) {
-                val dbX = w * 0.08f + i * dbSpacing
-                // Left round bell plate
-                drawRoundRect(
-                    color = Color(0xFF1A191C),
-                    topLeft = androidx.compose.ui.geometry.Offset(dbX - 20f, rackY - 10f),
-                    size = androidx.compose.ui.geometry.Size(12f, 30f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
-                )
-                // Right round bell plate
-                drawRoundRect(
-                    color = Color(0xFF1A191C),
-                    topLeft = androidx.compose.ui.geometry.Offset(dbX + 8f, rackY - 10f),
-                    size = androidx.compose.ui.geometry.Size(12f, 30f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
-                )
-                // Handle bar connect
-                drawLine(
-                    color = Color(0xFF65636A),
-                    start = androidx.compose.ui.geometry.Offset(dbX - 10f, rackY + 5f),
-                    end = androidx.compose.ui.geometry.Offset(dbX + 10f, rackY + 5f),
-                    strokeWidth = 4f
-                )
-            }
-            
-            // 3. Stacked circular heavy weight plates on the floor (bottom-right)
-            val plateCenterX = w * 0.74f
-            val plateCenterY = h * 0.88f
-            
-            // Base/Bottom Plate drawing
-            val p1W = 120f
-            val p1H = 32f
-            drawOval(
-                color = Color(0xFF0F0E11),
-                topLeft = androidx.compose.ui.geometry.Offset(plateCenterX - p1W - 2f, plateCenterY - p1H - 2f + 4f),
-                size = androidx.compose.ui.geometry.Size(p1W * 2 + 4f, p1H * 2 + 6f)
-            )
-            drawOval(
-                color = Color(0xFF353439),
-                topLeft = androidx.compose.ui.geometry.Offset(plateCenterX - p1W, plateCenterY - p1H + 4f),
-                size = androidx.compose.ui.geometry.Size(p1W * 2, p1H * 2)
-            )
-            drawOval(
-                color = Color(0xFF242327),
-                topLeft = androidx.compose.ui.geometry.Offset(plateCenterX - p1W, plateCenterY - p1H),
-                size = androidx.compose.ui.geometry.Size(p1W * 2, p1H * 2)
-            )
-            // Groove details
-            drawOval(
-                color = Color(0xFF141316),
-                topLeft = androidx.compose.ui.geometry.Offset(plateCenterX - p1W * 0.7f, plateCenterY - p1H * 0.7f),
-                size = androidx.compose.ui.geometry.Size(p1W * 1.4f, p1H * 1.4f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f)
-            )
-            // Center hole shadow
-            drawOval(
-                color = Color(0xFF0D0C0F),
-                topLeft = androidx.compose.ui.geometry.Offset(plateCenterX - 18f, plateCenterY - 6f),
-                size = androidx.compose.ui.geometry.Size(36f, 12f)
-            )
-            
-            // Top overlapping Plate drawing
-            val p2X = plateCenterX - 12f
-            val p2Y = plateCenterY - 14f
-            val p2W = 105f
-            val p2H = 28f
-            drawOval(
-                color = Color.Black.copy(alpha = 0.45f),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - p2W - 3f, p2Y - p2H + 5f),
-                size = androidx.compose.ui.geometry.Size(p2W * 2 + 6f, p2H * 2 + 2f)
-            )
-            drawOval(
-                color = Color(0xFF4C4B50),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - p2W, p2Y - p2H + 4f),
-                size = androidx.compose.ui.geometry.Size(p2W * 2, p2H * 2)
-            )
-            drawOval(
-                color = Color(0xFF38373B),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - p2W, p2Y - p2H),
-                size = androidx.compose.ui.geometry.Size(p2W * 2, p2H * 2)
-            )
-            drawOval(
-                color = Color(0xFF17161A),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - p2W * 0.7f, p2Y - p2H * 0.7f),
-                size = androidx.compose.ui.geometry.Size(p2W * 1.4f, p2H * 1.4f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f)
-            )
-            drawOval(
-                color = Color(0xFF0D0C0F),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - 14f, p2Y - 5f),
-                size = androidx.compose.ui.geometry.Size(28f, 10f)
-            )
-            drawOval(
-                color = Color(0xFF6F6D73),
-                topLeft = androidx.compose.ui.geometry.Offset(p2X - 14f, p2Y - 5f),
-                size = androidx.compose.ui.geometry.Size(28f, 10f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-            )
-            
-            // 4. Sparkle/Star Ornament in the bottom right corner
-            val starX = w * 0.92f
-            val starY = h * 0.95f
-            val starSize = 24f
-            
-            val starPath = androidx.compose.ui.graphics.Path().apply {
-                moveTo(starX, starY - starSize)
-                quadraticTo(starX, starY, starX + starSize, starY)
-                quadraticTo(starX, starY, starX, starY + starSize)
-                quadraticTo(starX, starY, starX - starSize, starY)
-                quadraticTo(starX, starY, starX, starY - starSize)
-            }
-            drawPath(
-                path = starPath,
-                color = Color.White.copy(alpha = 0.85f)
-            )
-        }
+        )
 
-        // Layout over the high-fidelity background
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(24.dp)
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                // Highly detailed muscular roster chicken mascot centered above texts
-                StrongChickenMascot(
-                    modifier = Modifier
-                        .size(240.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Majestic bold dark name with deep violet/neon purple shadow glow
-                Text(
-                    text = "DESFRANGANDO",
-                    fontFamily = RoundedFontFamily,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 35.sp,
-                    color = Color(0xFF131215), // Bold industrial dark slate
-                    style = TextStyle(
-                        letterSpacing = 1.5.sp,
-                        shadow = androidx.compose.ui.graphics.Shadow(
-                            color = Color(0xFF9E00FF).copy(alpha = 0.6f), // Majestic Violet Glow Accent
-                            offset = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            blurRadius = 16f
-                        )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                "DESFRANGANDO", 
+                color = Color.White, 
+                fontSize = 28.sp, 
+                fontWeight = FontWeight.ExtraBold, 
+                fontFamily = RoundedFontFamily, 
+                letterSpacing = 2.sp, 
+                style = TextStyle(
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color(0xFFA020F0), 
+                        blurRadius = 16f
                     )
                 )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // High contrast industrial crimson subtitle with white shadow backing for perfect readability
-                Text(
-                    text = "CHEGA DE CHASSI DE GRILLO",
-                    fontFamily = TechMonospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = Color(0xFFC62828), // High contrast Crimson Red
-                    style = TextStyle(
-                        letterSpacing = 1.2.sp,
-                        shadow = androidx.compose.ui.graphics.Shadow(
-                            color = Color.White.copy(alpha = 0.9f),
-                            offset = androidx.compose.ui.geometry.Offset(1f, 1f),
-                            blurRadius = 4f
-                        )
+            )
+            Text(
+                "TREINO & EVOLUÇÃO", 
+                color = Color(0xFFB388FF), 
+                fontSize = 12.sp, 
+                fontWeight = FontWeight.Bold, 
+                letterSpacing = 4.sp
+            )
+            
+            Spacer(modifier = Modifier.weight(1f))
+            
+            Text(
+                "Transforme seu Corpo.\nTransforme sua Vida.", 
+                color = Color.White, 
+                fontSize = 32.sp, 
+                fontWeight = FontWeight.Bold, 
+                textAlign = TextAlign.Center, 
+                lineHeight = 36.sp,
+                style = TextStyle(
+                    shadow = androidx.compose.ui.graphics.Shadow(
+                        color = Color.Black.copy(alpha=0.5f), 
+                        blurRadius = 8f
                     )
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Informational body text in dark slate for perfect legibility
-                Text(
-                    text = "Treinos extremos gerados por Inteligência Artificial adaptada biomecanicamente.",
-                    color = Color(0xFF2C2A2F), // Dark slate grey
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp,
-                    style = TextStyle(
-                        shadow = androidx.compose.ui.graphics.Shadow(
-                            color = Color.White.copy(alpha = 0.8f),
-                            offset = androidx.compose.ui.geometry.Offset(0.5f, 0.5f),
-                            blurRadius = 3f
-                        )
-                    ),
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-
-                Spacer(modifier = Modifier.height(36.dp))
-
-                // Authentic multi-color google login button with clean light-grey border
-                Button(
-                    onClick = { showLocalAccountChooser = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0CFD4)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(horizontal = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        GoogleGLogo(modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            "CONECTAR COM CONTA GOOGLE", 
-                            fontSize = 12.sp, 
-                            fontWeight = FontWeight.Bold, 
-                            fontFamily = TechMonospace,
-                            color = Color.Black
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Sleek, modern outlined visitor bypass button with rich violet border to match concrete styling
-                OutlinedButton(
-                    onClick = onBypass,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF131215)),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFF8000FF)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(horizontal = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Default.PlayArrow, 
-                            contentDescription = null, 
-                            tint = Color(0xFF8000FF), 
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "PULAR (ENTRAR COMO VISITANTE)", 
-                            color = Color(0xFF131215), 
-                            fontSize = 12.sp, 
-                            fontWeight = FontWeight.Bold, 
-                            fontFamily = TechMonospace
-                        )
-                    }
-                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Treinos personalizados, evolução real e resultados de verdade.", 
+                color = Color.LightGray, 
+                fontSize = 14.sp, 
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(40.dp))
+            
+            // Cards transparentes glassmorphism para botões se quiser, mas botoes solidos com premium feel funcionam bem.
+            Button(
+                onClick = { showLocalAccountChooser = true }, 
+                modifier = Modifier.fillMaxWidth().height(52.dp), 
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black), 
+                shape = RoundedCornerShape(12.dp)
+            ) { 
+                Row(verticalAlignment = Alignment.CenterVertically) { 
+                    GoogleGLogo(modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Entrar com Google", fontWeight = FontWeight.Bold) 
+                } 
             }
-
-            // Developer credits, nicely centered at the screen bottom
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Button(
+                onClick = { showLocalAccountChooser = true }, 
+                modifier = Modifier.fillMaxWidth().height(52.dp), 
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA020F0), contentColor = Color.White), 
+                shape = RoundedCornerShape(12.dp)
+            ) { 
+                Text("Entrar com E-mail", fontWeight = FontWeight.Bold) 
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            OutlinedButton(
+                onClick = { showLocalAccountChooser = true }, 
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)), // subtle glass
+                border = BorderStroke(1.dp, Color(0xFFA020F0).copy(alpha=0.5f)), 
+                shape = RoundedCornerShape(12.dp), 
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            ) { 
+                Text("Criar nova conta", fontWeight = FontWeight.Bold) 
+            }
+            
             Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .clickable {
-                        try {
-                            uriHandler.openUri("https://www.instagram.com/rc.galdino")
-                        } catch (_: Exception) {}
-                    }
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "desenvolvido por ",
-                    color = Color(0xFF4A494E),
-                    fontSize = 11.sp,
-                    fontFamily = TechMonospace
-                )
-                Text(
-                    text = "rc.galdino",
-                    color = Color(0xFF8000FF),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    fontFamily = TechMonospace,
-                    style = TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
-                )
+            TextButton(onClick = onBypass) { 
+                Text("Entrar como Visitante", color = Color.Gray, fontSize = 12.sp) 
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
@@ -5296,3 +5476,451 @@ fun LoginEntranceScreen(
     }
 }
 
+fun parseHexColor(colorString: String): Color {
+    try {
+        if (colorString.startsWith("#")) {
+            val colorStrWithoutHash = colorString.substring(1)
+            if (colorStrWithoutHash.length == 6) {
+                return Color(android.graphics.Color.parseColor("#FF$colorStrWithoutHash"))
+            } else if (colorStrWithoutHash.length == 8) {
+                return Color(android.graphics.Color.parseColor(colorString))
+            }
+        }
+    } catch (e: Exception) {
+        // Fallback
+    }
+    return Color(0xFF8B5CF6)
+}
+
+@Composable
+fun ShareWorkoutDialog(workout: com.example.model.SavedWorkout, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header Thumbnail
+                Box(
+                    modifier = Modifier.size(80.dp).background(parseHexColor(workout.colorHex).copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(workout.emoji, fontSize = 40.sp)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Compartilhar Treino", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text(workout.title, color = TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = {
+                        val sb = StringBuilder()
+                        sb.append("Meu Treino: ${workout.emoji} ${workout.title}\n\n")
+                        workout.getExercises().forEach { ex ->
+                            sb.append("  - ${ex.name} (${ex.sets}x${ex.repsRange})\n")
+                        }
+                        
+                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            putExtra(android.content.Intent.EXTRA_TEXT, sb.toString().trim())
+                            type = "text/plain"
+                        }
+                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Compartilhar Treino")
+                        context.startActivity(shareIntent)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TechCyan, contentColor = Color.Black),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Compartilhar Lista de Exercícios", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancelar", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShareRoutineDialog(tab: com.example.model.RoutineCategory, workoutCount: Int, savedWorkouts: List<com.example.model.SavedWorkout>, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.size(80.dp).background(parseHexColor(tab.colorHex).copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(tab.emoji, fontSize = 40.sp)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Compartilhar Rotina", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("${tab.name} ($workoutCount treinos)", color = TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = {
+                        val sb = StringBuilder()
+                        sb.append("Minha Rotina: ${tab.emoji} ${tab.name}\n\n")
+                        savedWorkouts.forEach { wk ->
+                            sb.append("${wk.emoji} ${wk.title}:\n")
+                            wk.getExercises().forEach { ex ->
+                                sb.append("  - ${ex.name} (${ex.sets}x${ex.repsRange})\n")
+                            }
+                            sb.append("\n")
+                        }
+                        
+                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            putExtra(android.content.Intent.EXTRA_TEXT, sb.toString().trim())
+                            type = "text/plain"
+                        }
+                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Compartilhar Rotina")
+                        context.startActivity(shareIntent)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TechCyan, contentColor = Color.Black),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Compartilhar Lista de Treinos", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancelar", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShareOptionButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier.size(48.dp).background(color.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = color)
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(label, color = TextMuted, fontSize = 11.sp)
+    }
+}
+
+@Composable
+fun EditWorkoutDialog(
+    workout: com.example.model.SavedWorkout,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String) -> Unit
+) {
+    var title by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(workout.title) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar Treino") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Nome do Treino") }
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                onSave(title, workout.category, workout.emoji, workout.colorHex)
+            }) { Text("SALVAR") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("CANCELAR") }
+        }
+    )
+}
+
+@Composable
+fun ManualWorkoutCreatorScreen(
+    initialWorkout: com.example.model.SavedWorkout?,
+    availableExercises: List<com.example.model.ExerciseExecutionReference>,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String, String, String, List<com.example.model.WorkoutExercise>) -> Unit
+) {
+    var title by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(initialWorkout?.title ?: "") }
+    
+    var exercises by androidx.compose.runtime.remember { 
+        androidx.compose.runtime.mutableStateOf<List<com.example.model.WorkoutExercise>>(initialWorkout?.getExercises()?.toList() ?: emptyList())
+    }
+    
+    var showAddExerciseDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    var exerciseToEdit by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.model.WorkoutExercise?>(null) }
+    var exerciseToEditIndex by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(-1) }
+
+    Box(modifier = Modifier.fillMaxSize().background(CarbonSurface)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(if (initialWorkout == null) "Criar Treino Manualmente" else "Editar Treino", color = Color.White, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                 value = title,
+                 onValueChange = { title = it },
+                 label = { Text("Nome do Treino (ex: Treino A - Peito)") },
+                 modifier = Modifier.fillMaxWidth(),
+                 colors = OutlinedTextFieldDefaults.colors(
+                     focusedTextColor = Color.White,
+                     unfocusedTextColor = Color.White
+                 )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Exercícios", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Button(onClick = { showAddExerciseDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen)) {
+                    Text("Adicionar", color = Color.Black)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(exercises.size) { index ->
+                    val ex = exercises[index]
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.DarkGray)) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f).clickable { 
+                                    exerciseToEdit = ex
+                                    exerciseToEditIndex = index
+                                }) {
+                                    Text(ex.name, color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("${ex.sets} séries x ${ex.repsRange} reps | ${ex.restSeconds}s", color = Color.LightGray, fontSize = 12.sp)
+                                    if (ex.notes.isNotBlank()) {
+                                        Text("Obs: ${ex.notes}", color = TechCyan, fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                                    }
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    if (index > 0) {
+                                        IconButton(onClick = { 
+                                            val newList = exercises.toMutableList()
+                                            java.util.Collections.swap(newList, index, index - 1)
+                                            exercises = newList
+                                        }, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Subir", tint = Color.LightGray)
+                                        }
+                                    }
+                                    if (index < exercises.size - 1) {
+                                        IconButton(onClick = { 
+                                            val newList = exercises.toMutableList()
+                                            java.util.Collections.swap(newList, index, index + 1)
+                                            exercises = newList
+                                        }, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Descer", tint = Color.LightGray)
+                                        }
+                                    }
+                                    IconButton(onClick = { 
+                                        val newList = exercises.toMutableList()
+                                        newList.add(index + 1, ex.copy(exerciseId = java.util.UUID.randomUUID().toString()))
+                                        exercises = newList
+                                    }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Duplicar", tint = TechCyan, modifier = Modifier.size(16.dp))
+                                    }
+                                    IconButton(onClick = { 
+                                        val newList = exercises.toMutableList()
+                                        newList.removeAt(index)
+                                        exercises = newList
+                                    }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remover", tint = Color.Red, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Button(
+                     onClick = onDismiss,
+                     modifier = Modifier.weight(1f),
+                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                ) {
+                    Text("CANCELAR", color = Color.White)
+                }
+                Button(
+                     onClick = {
+                         onSave(title, initialWorkout?.category ?: "Custom", initialWorkout?.emoji ?: "💪", initialWorkout?.colorHex ?: "#2A7CF6", initialWorkout?.splitType ?: "Manual", initialWorkout?.focus ?: "Geral", exercises)
+                     },
+                     modifier = Modifier.weight(1f),
+                     colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen),
+                     enabled = title.isNotBlank() && exercises.isNotEmpty()
+                ) {
+                    Text("SALVAR", color = Color.Black)
+                }
+            }
+        }
+    }
+    
+    if (showAddExerciseDialog) {
+        var searchQuery by remember { mutableStateOf("") }
+        var selectedRef by remember { mutableStateOf<com.example.model.ExerciseExecutionReference?>(null) }
+        var sets by remember { mutableStateOf("3") }
+        var reps by remember { mutableStateOf("10") }
+        
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAddExerciseDialog = false },
+            title = { Text("Adicionar Exercício") },
+            text = {
+                Column {
+                    if (selectedRef == null) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("Buscar exercício...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                            items(availableExercises.filter { it.name.contains(searchQuery, ignoreCase = true) || it.primaryMuscleName.contains(searchQuery, ignoreCase = true) }) { ref ->
+                                Text("${ref.name} (${ref.primaryMuscleName})", modifier = Modifier.fillMaxWidth().clickable { selectedRef = ref }.padding(8.dp), color = Color.White, fontSize = 14.sp)
+                                androidx.compose.material3.HorizontalDivider(color = Color.DarkGray)
+                            }
+                        }
+                    } else {
+                        Text("Exercício: ${selectedRef!!.name}", color = ToxicGreen, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = sets,
+                            onValueChange = { sets = it },
+                            label = { Text("Séries") },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = reps,
+                            onValueChange = { reps = it },
+                            label = { Text("Repetições") }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { selectedRef = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) { Text("Trocar Exercício", color = Color.White) }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    if (selectedRef != null) {
+                        val newEx = com.example.model.WorkoutExercise(
+                            exerciseId = java.util.UUID.randomUUID().toString(),
+                            name = selectedRef!!.name,
+                            muscleGroup = selectedRef!!.primaryMuscleName,
+                            targetMuscleDetail = selectedRef!!.primaryMuscleName,
+                            sets = sets.toIntOrNull() ?: 3,
+                            repsRange = reps,
+                            tempo = selectedRef!!.biomechanicalTempo,
+                            restSeconds = 60,
+                            advancedTechnique = "None",
+                            intensityRPE = 8,
+                            notes = ""
+                        )
+                        val newList = exercises.toMutableList()
+                        newList.add(newEx)
+                        exercises = newList
+                        showAddExerciseDialog = false
+                    }
+                }, enabled = selectedRef != null) {
+                    Text("ADICIONAR", color = ToxicGreen)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showAddExerciseDialog = false }) { Text("CANCELAR", color = Color.Gray) }
+            },
+            containerColor = CarbonCard
+        )
+    }
+
+    val currentExercise = exerciseToEdit
+    if (currentExercise != null) {
+        var editSets by remember(currentExercise.exerciseId) { mutableStateOf(currentExercise.sets.toString()) }
+        var editReps by remember(currentExercise.exerciseId) { mutableStateOf(currentExercise.repsRange) }
+        var editRest by remember(currentExercise.exerciseId) { mutableStateOf(currentExercise.restSeconds.toString()) }
+        var editNotes by remember(currentExercise.exerciseId) { mutableStateOf(currentExercise.notes) }
+
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { exerciseToEdit = null },
+            title = { Text("Editar Execução", color = Color.White) },
+            text = {
+                Column {
+                    Text(currentExercise.name, color = ToxicGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                    OutlinedTextField(
+                        value = editSets,
+                        onValueChange = { editSets = it },
+                        label = { Text("Séries") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editReps,
+                        onValueChange = { editReps = it },
+                        label = { Text("Repetições (ex: 8-12, 10)") }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editRest,
+                        onValueChange = { editRest = it },
+                        label = { Text("Descanso (segundos)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Observações") },
+                        minLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val updated = currentExercise.copy(
+                        sets = editSets.toIntOrNull() ?: 3,
+                        repsRange = editReps,
+                        restSeconds = editRest.toIntOrNull() ?: 60,
+                        notes = editNotes
+                    )
+                    val newList = exercises.toMutableList()
+                    newList[exerciseToEditIndex] = updated
+                    exercises = newList
+                    exerciseToEdit = null
+                }) {
+                    Text("SALVAR", color = ToxicGreen)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { exerciseToEdit = null }) { Text("CANCELAR", color = Color.Gray) }
+            },
+            containerColor = CarbonCard
+        )
+    }
+}

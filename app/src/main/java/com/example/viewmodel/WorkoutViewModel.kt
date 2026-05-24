@@ -13,7 +13,6 @@ import com.example.data.WorkoutRepository
 import com.example.model.*
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import android.content.Context
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -25,6 +24,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val repository = WorkoutRepository(workoutDao)
 
     private val prefs = application.getSharedPreferences("apexforce_user_prefs", Context.MODE_PRIVATE)
+
+    private val moshi = Moshi.Builder().build()
 
     private val _isDarkTheme = MutableStateFlow(prefs.getBoolean("is_dark_theme", true))
     val isDarkTheme = _isDarkTheme.asStateFlow()
@@ -89,6 +90,146 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
+
+    // --- Tabs State ---
+    private val _tabs = MutableStateFlow<List<com.example.model.RoutineCategory>>(emptyList())
+    val tabs = _tabs.asStateFlow()
+
+    private val _activeTab = MutableStateFlow(prefs.getString("active_tab_name", "Favorito") ?: "Favorito")
+    val activeTab = _activeTab.asStateFlow()
+
+    // --- Cycle State ---
+    private val _currentCycleWorkoutIds = MutableStateFlow<List<String>>(emptyList())
+    val currentCycleWorkoutIds = kotlinx.coroutines.flow.combine(
+        _currentCycleWorkoutIds,
+        _activeTab,
+        _tabs,
+        repository.allSavedWorkouts
+    ) { explicitIds, activeTab, tabs, workouts ->
+        if (explicitIds.isNotEmpty()) {
+            explicitIds
+        } else {
+            workouts.sortedWith(
+                compareByDescending<com.example.model.SavedWorkout> { it.isFavorite }
+                    .thenByDescending { it.dateCreated }
+            ).filter {
+                it.category == activeTab || 
+                (activeTab == tabs.firstOrNull()?.name && (it.category.isBlank() || it.isFavorite)) ||
+                (activeTab == "Favorito" && it.isFavorite)
+            }.map { it.id }
+        }
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyList())
+
+    private val _currentCycleIndex = MutableStateFlow(0)
+    val currentCycleIndex = _currentCycleIndex.asStateFlow()
+
+    private val _cycleTotalWorkoutsCompleted = MutableStateFlow(0)
+    val cycleTotalWorkoutsCompleted = _cycleTotalWorkoutsCompleted.asStateFlow()
+
+    private val _cycleStartDateMs = MutableStateFlow(0L)
+    val cycleStartDateMs = _cycleStartDateMs.asStateFlow()
+
+    // Streak System
+    private val _currentStreak = MutableStateFlow(0)
+    val currentStreak = _currentStreak.asStateFlow()
+
+    init {
+        loadTabs()
+        switchActiveTab(_activeTab.value)
+    }
+
+    private fun loadTabs() {
+        val json = prefs.getString("custom_tabs_json", "[]") ?: "[]"
+        try {
+            val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, com.example.model.RoutineCategory::class.java)
+            val adapter = moshi.adapter<List<com.example.model.RoutineCategory>>(listType)
+            val rawTabs = adapter.fromJson(json) ?: emptyList()
+            if (rawTabs.isEmpty()) {
+                val defaultTabs = listOf(
+                    com.example.model.RoutineCategory(name = "Favorito", emoji = "⭐"),
+                    com.example.model.RoutineCategory(name = "Hipertrofia", emoji = "🦾"),
+                    com.example.model.RoutineCategory(name = "Casa", emoji = "🏠")
+                )
+                _tabs.value = defaultTabs
+                saveTabs(defaultTabs)
+            } else {
+                _tabs.value = rawTabs
+            }
+        } catch (e: Exception) {
+            _tabs.value = emptyList()
+        }
+    }
+
+    private fun saveTabs(newTabs: List<com.example.model.RoutineCategory>) {
+        try {
+            val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, com.example.model.RoutineCategory::class.java)
+            val adapter = moshi.adapter<List<com.example.model.RoutineCategory>>(listType)
+            prefs.edit().putString("custom_tabs_json", adapter.toJson(newTabs)).apply()
+        } catch (e: Exception) {}
+    }
+
+    fun addTab(tab: com.example.model.RoutineCategory) {
+        val next = _tabs.value + tab
+        _tabs.value = next
+        saveTabs(next)
+        switchActiveTab(tab.name)
+    }
+
+    fun updateTab(tab: com.example.model.RoutineCategory) {
+        val next = _tabs.value.map { if (it.id == tab.id) tab else it }
+        _tabs.value = next
+        saveTabs(next)
+        if (_activeTab.value == _tabs.value.find { it.id == tab.id }?.name) {
+            switchActiveTab(tab.name)
+        }
+    }
+    
+    fun removeTab(tabId: String) {
+        val tabToRemove = _tabs.value.find { it.id == tabId }
+        val next = _tabs.value.filter { it.id != tabId }
+        _tabs.value = next
+        saveTabs(next)
+        if (tabToRemove?.name == _activeTab.value && next.isNotEmpty()) {
+            switchActiveTab(next.first().name)
+        }
+    }
+
+    fun reorderTabs(fromIndex: Int, toIndex: Int) {
+        val next = _tabs.value.toMutableList()
+        val item = next.removeAt(fromIndex)
+        next.add(toIndex, item)
+        _tabs.value = next
+        saveTabs(next)
+    }
+
+    fun duplicateTabAndWorkouts(tab: com.example.model.RoutineCategory, workouts: List<com.example.model.SavedWorkout>) {
+        val newName = "${tab.name} (Cópia)"
+        val newTab = tab.copy(id = java.util.UUID.randomUUID().toString(), name = newName)
+        addTab(newTab)
+
+        val workoutsToCopy = workouts.filter { it.category == tab.name }
+        viewModelScope.launch(Dispatchers.IO) {
+            workoutsToCopy.forEach { wk ->
+                val newWk = wk.copy(
+                    id = java.util.UUID.randomUUID().toString(),
+                    category = newName
+                )
+                repository.saveWorkout(newWk)
+            }
+        }
+    }
+
+    fun switchActiveTab(tabName: String) {
+        _activeTab.value = tabName
+        prefs.edit().putString("active_tab_name", tabName).apply()
+        
+        // Load state specific to this tab
+        _currentCycleWorkoutIds.value = prefs.getString("cycle_workout_ids_$tabName", "")?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+        _currentCycleIndex.value = prefs.getInt("cycle_current_index_$tabName", 0)
+        _cycleTotalWorkoutsCompleted.value = prefs.getInt("cycle_total_workouts_completed_$tabName", 0)
+        _cycleStartDateMs.value = prefs.getLong("cycle_start_date_ms_$tabName", 0L)
+        _currentStreak.value = prefs.getInt("current_streak_$tabName", 0)
+    }
 
     val wearableSyncManager = com.example.api.WearableSyncManager(workoutDao)
 
@@ -301,11 +442,54 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
             when (result) {
                 is GeneratedWorkoutResult.Success -> {
-                    _lastGeneratedWorkout.value = result.workout
+                    _lastGeneratedWorkout.value = result.cycle.firstOrNull()
                     _showGeneratedSuccessDialog.value = true
 
-                    // Auto-save generated workouts in DB
-                    saveGeneratedWorkout(result.workout)
+                    // Auto-save generated workouts in DB and init Cycle
+                    val split = selectedSplit
+                    val objective = _selectedObjective.value
+                    val generatedTabName = "IA: $split $objective"
+                    
+                    if (_tabs.value.none { it.name == generatedTabName }) {
+                        addTab(com.example.model.RoutineCategory(name = generatedTabName, emoji = "🤖", colorHex = "#BB86FC"))
+                    } else {
+                        switchActiveTab(generatedTabName)
+                    }
+
+                    viewModelScope.launch(Dispatchers.IO) {
+                        val savedIds = mutableListOf<String>()
+                        result.cycle.forEach { work ->
+                            val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+                            val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+                            val json = adapter.toJson(work.exercises) ?: "[]"
+
+                            val id = UUID.randomUUID().toString()
+                            savedIds.add(id)
+                            val saved = SavedWorkout(
+                                id = id,
+                                title = work.title,
+                                splitType = work.splitType,
+                                focus = work.focus,
+                                exercisesJson = json,
+                                category = generatedTabName,
+                                isFavorite = false
+                            )
+                            repository.saveWorkout(saved)
+                        }
+                        // Start 90-days Cycle
+                        val nowMs = System.currentTimeMillis()
+                        prefs.edit()
+                             .putString("cycle_workout_ids_$generatedTabName", savedIds.joinToString(","))
+                             .putInt("cycle_current_index_$generatedTabName", 0)
+                             .putLong("cycle_start_date_ms_$generatedTabName", nowMs)
+                             .putInt("cycle_total_workouts_completed_$generatedTabName", 0)
+                             .apply()
+                        
+                        _currentCycleWorkoutIds.value = savedIds
+                        _currentCycleIndex.value = 0
+                        _cycleTotalWorkoutsCompleted.value = 0
+                        _cycleStartDateMs.value = nowMs
+                    }
                 }
                 is GeneratedWorkoutResult.Error -> {
                     _generationError.value = result.message
@@ -318,9 +502,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _showGeneratedSuccessDialog.value = false
     }
 
+    fun saveImportedWorkout(workout: com.example.model.SavedWorkout) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveWorkout(workout)
+        }
+    }
+
     private fun saveGeneratedWorkout(work: GeneratedWorkout) {
         viewModelScope.launch(Dispatchers.IO) {
-            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
             val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
             val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
             val json = adapter.toJson(work.exercises) ?: "[]"
@@ -348,6 +537,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun deleteAllWorkouts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteAllWorkouts()
+        }
+    }
+
     fun clearHistory() {
         viewModelScope.launch(Dispatchers.IO) {
             repository.clearHistory()
@@ -362,22 +557,38 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
         val exercises = workout.getExercises()
         val tempRecords = mutableMapOf<Int, List<SetModelRecord>>()
+        val historyList: List<WorkoutHistory> = workoutHistory.value
 
         exercises.forEachIndexed { exIndex, exercise ->
             val setList = mutableListOf<SetModelRecord>()
-            for (i in 1..exercise.sets) {
-                // Pre-populate estimated weight based on goals and RPE
-                val estWeight = when (exercise.muscleGroup.uppercase()) {
+            
+            // Find historic weight for this exercise if possible
+            var historicWeight = 0.0
+            for (history in historyList) {
+                val completion = history.getCompletions().find { it.name == exercise.name }
+                if (completion != null && completion.setsCompleted.isNotEmpty()) {
+                    historicWeight = completion.setsCompleted.firstOrNull()?.weightKg ?: 0.0
+                    break // found the most recent one (since sorted by DESC)
+                }
+            }
+            
+            val estWeight = if (historicWeight > 0.0) historicWeight else {
+                when (exercise.muscleGroup.uppercase()) {
                     "PEITO", "DORSO", "PERNAS" -> 60.0
                     "OMBRO" -> 14.0
                     "BRAÇO", "BÍCEPS", "TRÍCEPS" -> 20.0
                     else -> 25.0
                 }
+            }
+            
+            val repsVal = exercise.repsRange.split(Regex("[^0-9]")).filter { it.isNotEmpty() }.lastOrNull()?.toIntOrNull() ?: 10
+
+            for (i in 1..exercise.sets) {
                 setList.add(
                     SetModelRecord(
                         setNumber = i,
                         weightKg = estWeight,
-                        repsCompleted = 8,
+                        repsCompleted = repsVal,
                         isChecked = false,
                         wasRpeMet = true
                     )
@@ -446,9 +657,65 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun skipWorkoutCycle() {
+        if (currentCycleWorkoutIds.value.isNotEmpty()) {
+            var nextIndex = _currentCycleIndex.value + 1
+            if (nextIndex >= currentCycleWorkoutIds.value.size) {
+                nextIndex = 0 // Loop
+            }
+            _currentCycleIndex.value = nextIndex
+            val tabName = _activeTab.value
+            prefs.edit().putInt("cycle_current_index_$tabName", nextIndex).apply()
+        }
+    }
+
+    fun previousWorkoutCycle() {
+        if (currentCycleWorkoutIds.value.isNotEmpty()) {
+            var nextIndex = _currentCycleIndex.value - 1
+            if (nextIndex < 0) {
+                nextIndex = currentCycleWorkoutIds.value.size - 1 // Loop backwards
+            }
+            _currentCycleIndex.value = nextIndex
+            val tabName = _activeTab.value
+            prefs.edit().putInt("cycle_current_index_$tabName", nextIndex).apply()
+        }
+    }
+
     fun finishWorkoutSession(totalCustomMinutes: Int? = null) {
         val currentWorkout = _activeWorkout.value ?: return
         val currentRecords = _setRecordsState.value
+        
+        // Cycle updates
+        val total = _cycleTotalWorkoutsCompleted.value + 1
+        _cycleTotalWorkoutsCompleted.value = total
+        
+        var nextIndex = _currentCycleIndex.value + 1
+        if (nextIndex >= currentCycleWorkoutIds.value.size && currentCycleWorkoutIds.value.isNotEmpty()) {
+            nextIndex = 0 // Loop cycle
+        }
+        _currentCycleIndex.value = nextIndex
+        
+        // Streak Logic
+        val tabName = _activeTab.value
+        val lastTime = prefs.getLong("last_workout_time_ms_$tabName", 0L)
+        val now = System.currentTimeMillis()
+        val diffHours = (now - lastTime) / (1000 * 60 * 60)
+        
+        val newStreak = if (lastTime == 0L || diffHours > 48) {
+            1
+        } else if (diffHours > 12) {
+            _currentStreak.value + 1
+        } else {
+            _currentStreak.value // Too soon to count as a new day
+        }
+        _currentStreak.value = newStreak
+        
+        prefs.edit()
+            .putInt("cycle_total_workouts_completed_$tabName", total)
+            .putInt("cycle_current_index_$tabName", nextIndex)
+            .putLong("last_workout_time_ms_$tabName", now)
+            .putInt("current_streak_$tabName", newStreak)
+            .apply()
 
         viewModelScope.launch(Dispatchers.IO) {
             var totalVolume = 0.0
@@ -484,7 +751,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                  totalVolume = 3200.0 // avg volume
             }
 
-            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
             val listType = Types.newParameterizedType(List::class.java, ExerciseCompletion::class.java)
             val adapter = moshi.adapter<List<ExerciseCompletion>>(listType)
             val completionJsonStr = adapter.toJson(completions) ?: "[]"
@@ -773,7 +1039,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             )
             exercises[exerciseIndex] = newEx
             
-            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
             val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
             val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
             val updatedJson = adapter.toJson(exercises) ?: "[]"
@@ -788,6 +1053,39 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun saveManualRoutine(workouts: List<SavedWorkout>) {
+        if (workouts.isEmpty()) return
+        val routineName = workouts.first().category
+        if (_tabs.value.none { it.name == routineName }) {
+            val emoji = if (workouts.first().emoji.isNotBlank()) workouts.first().emoji else "📝"
+            addTab(com.example.model.RoutineCategory(name = routineName, emoji = emoji, colorHex = "#BB86FC"))
+        } else {
+            switchActiveTab(routineName)
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val savedIds = mutableListOf<String>()
+            workouts.forEach {
+                repository.saveWorkout(it)
+                savedIds.add(it.id)
+            }
+            
+            // Start 90-days Cycle
+            val nowMs = System.currentTimeMillis()
+            prefs.edit()
+                 .putString("cycle_workout_ids_$routineName", savedIds.joinToString(","))
+                 .putInt("cycle_current_index_$routineName", 0)
+                 .putLong("cycle_start_date_ms_$routineName", nowMs)
+                 .putInt("cycle_total_workouts_completed_$routineName", 0)
+                 .apply()
+            
+            _currentCycleWorkoutIds.value = savedIds
+            _currentCycleIndex.value = 0
+            _cycleTotalWorkoutsCompleted.value = 0
+            _cycleStartDateMs.value = nowMs
+        }
+    }
+
     fun createManualWorkout(
         title: String,
         category: String,
@@ -798,7 +1096,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         exercises: List<WorkoutExercise>
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
             val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
             val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
             val json = adapter.toJson(exercises) ?: "[]"

@@ -6,7 +6,6 @@ import com.example.model.WorkoutHistory
 import com.example.model.ExerciseCompletion
 import com.example.model.SetRecord
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -17,6 +16,7 @@ import retrofit2.http.*
 import java.util.concurrent.TimeUnit
 
 // Strava API models for actual web HTTP sync
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class StravaActivity(
     val id: Long,
     val name: String,
@@ -27,6 +27,7 @@ data class StravaActivity(
     val type: String // e.g. "WeightTraining", "Workout", "Run"
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class StravaTokenResponse(
     val access_token: String,
     val refresh_token: String,
@@ -55,10 +56,12 @@ interface StravaApi {
 }
 
 // Google Fit REST API models
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class GoogleFitSessionResponse(
     val session: List<GoogleFitSession>
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class GoogleFitSession(
     val id: String,
     val name: String,
@@ -79,7 +82,7 @@ interface GoogleFitApi {
 
 class WearableSyncManager(private val workoutDao: WorkoutDao) {
     private val TAG = "WearableSyncManager"
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    private val moshi = Moshi.Builder().build()
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)

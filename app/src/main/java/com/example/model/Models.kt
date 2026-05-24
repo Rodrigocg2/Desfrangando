@@ -4,8 +4,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 @Entity(tableName = "saved_workouts")
 data class SavedWorkout(
     @PrimaryKey val id: String,
@@ -19,11 +19,14 @@ data class SavedWorkout(
     val emoji: String = "💪",
     val colorHex: String = "#8B5CF6"
 ) {
+    companion object {
+        private val moshi: Moshi = Moshi.Builder().build()
+        private val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+        private val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+    }
+
     fun getExercises(): List<WorkoutExercise> {
         return try {
-            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-            val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
-            val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
             adapter.fromJson(exercisesJson) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -31,6 +34,7 @@ data class SavedWorkout(
     }
 }
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 @Entity(tableName = "workout_history")
 data class WorkoutHistory(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -40,8 +44,23 @@ data class WorkoutHistory(
     val durationMinutes: Int,
     val totalVolumeKg: Double,
     val completionJson: String // Serialized List<ExerciseCompletion>
-)
+) {
+    companion object {
+        private val moshi: com.squareup.moshi.Moshi = com.squareup.moshi.Moshi.Builder().build()
+        private val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, ExerciseCompletion::class.java)
+        private val adapter = moshi.adapter<List<ExerciseCompletion>>(listType)
+    }
 
+    fun getCompletions(): List<ExerciseCompletion> {
+        return try {
+            adapter.fromJson(completionJson) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+}
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class WorkoutExercise(
     val exerciseId: String,
     val name: String,
@@ -57,17 +76,28 @@ data class WorkoutExercise(
     val trainingPhase: String = "Principal" // Aquecimento, Principal, Acessório, Alongamento
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class ExerciseCompletion(
     val exerciseId: String,
     val name: String,
     val setsCompleted: List<SetRecord>
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class SetRecord(
     val setNumber: Int,
     val weightKg: Double,
     val repsCompleted: Int,
     val wasRpeMet: Boolean
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class RoutineCategory(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val emoji: String = "📁",
+    val colorHex: String = "#8B5CF6", // default purple
+    val iconResName: String = "" // Placeholder for custom icons if needed
 )
 
 // Base Exercise definition for execution reference

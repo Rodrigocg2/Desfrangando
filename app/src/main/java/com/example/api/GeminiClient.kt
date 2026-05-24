@@ -5,7 +5,6 @@ import com.example.BuildConfig
 import com.example.model.WorkoutExercise
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -27,7 +26,7 @@ object GeminiClient {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    private val moshi = Moshi.Builder().build()
 
     suspend fun generateWorkout(
         splitType: String,
@@ -41,7 +40,11 @@ object GeminiClient {
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "Gemini API key is not configured. Falling back to high-grade local generation.")
             return@withContext GeneratedWorkoutResult.Success(
-                getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek),
+                listOf(
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "A"),
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "B"),
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "C")
+                ),
                 isLocalFallback = true
             )
         }
@@ -50,6 +53,30 @@ object GeminiClient {
             Você é um Treinador Científico de Musculação de Alto Rendimento com PhD em Cinesiologia e treinador de atletas classe Elite.
             Você gera rotinas impecáveis, que parecem prescritas por um personal trainer premium de altíssimo nível.
             Regra Fundamental: Você DEVE responder EXCLUSIVAMENTE com o objeto JSON válido, sem tags markdown (como ```json ou ```) e sem qualquer texto explicativo fora do JSON.
+            
+            DIRETRIZES PROFISSIONAIS DE CRIAÇÃO (Siga estritamente):
+            - Para Hipertrofia: Crescimento muscular, 3-4 séries, 8-12 reps, Descanso 60-90s, carga alta perto da falha.
+            - Para Força: Aumento de carga, 4-6 séries, 3-6 reps, Descanso 120-180s, carga muito alta.
+            - Para Emagrecimento: Gasto calórico, 3-4 séries, 12-20 reps, Descanso 30-60s, circuitos HIIT.
+            - Para Resistência: 2-4 séries, 15-25 reps, Descanso 30-45s.
+            - Para Definição: 3-4 séries, 10-15 reps, Descanso 45-60s.
+            
+            REGRAS DE SÉRIES: Compostos geram 4 séries (Supino, Agachamento, etc). Isoladores usam 3 séries (Rosca, Tríceps, etc).
+            ORDEM DOS EXERCÍCIOS: Inicie sempre por compostos multiarticulares, passe para isoladores, finalize com abdômen/cardio/panturrilha.
+            
+            REGRAS DE TEMPO/VOLUME DE TREINO:
+            - 30 minutos = Exatamente 5 exercícios.
+            - 45 minutos = Exatamente 6 exercícios.
+            - 60 minutos = Exatamente 7 exercícios.
+            - 90 minutos = Exatamente 8 exercícios.
+            
+            DIVISÕES DE TREINO:
+            - ABC: 3 treinos, ABCD: 4 treinos, ABCDE: 5 treinos.
+            - PUSH PULL LEGS: Push, Pull, Legs.
+            - UPPER LOWER: Upper, Lower. Se for 4 dias, gere Upper A, Lower A, Upper B, Lower B.
+            Nunca repita músculos pesados seguidos.
+
+            Não use formato de dias da semana, use sequência de treinos (Ex: Treino A, Treino B, Treino C, Treino D).
         """.trimIndent()
 
         val prompt = """
@@ -105,28 +132,34 @@ object GeminiClient {
             - Nível "Avançado": Permita técnicas de alta intensidade controladas nas últimas séries dos exercícios principais/acessórios, tais como "Drop-set", "Rest-pause", ou "Bi-set".
             - SEGURANÇA MÁXIMA: A IA NUNCA deve repetir treinos pesados para o mesmo músculo em dias seguidos (respeite a recuperação de 48h-72h) e NUNCA coloque pernas pesadas 2 dias seguidos.
 
-            Retorne no seguinte formato estrito JSON (Substitua as variáveis pelo treino gerado para o dia em questão):
-            {
-               "title": "Nome imponente do Treino e o Dia Corrido (ex: Treino A: Dorsal Force & Bíceps)",
-               "splitType": "$splitType",
-               "focus": "$focus",
-               "exercises": [
-                  {
-                     "exerciseId": "identificador_unico_minusculo_com_sublinhado (ex: supino_reto, agachamento_livre, levantamento_terra, puxada_polia_alta, elevacao_lateral, rosca_polia, triceps_testa, leg_press_45, ou um id customizado relevante)",
-                     "name": "Nome do exercício em Português",
-                     "muscleGroup": "Grupo muscular principal (Peito, Dorso, Pernas, Ombros, Braços, Cardio, Abdômen)",
-                     "targetMuscleDetail": "Qual porção muscular foca especificamente (ex: Fibras superiores do peitoral, Vasto lateral do quadríceps)",
-                     "sets": 4,
-                     "repsRange": "Faixa de repetições (ex: 4 séries de 8-12 reps, ou Pirâmide 12-10-8-6)",
-                     "tempo": "Tempo sob tensão em 4 dígitos (ex: 3-1-1-0 para 3s excêntrica, 1s isométrica, 1s isométrica de contração)",
-                     "restSeconds": 90,
-                     "advancedTechnique": "Técnica avançada usada (ex: Drop-set, Rest-Pause, Bi-set, Nenhuma)",
-                     "intensityRPE": 8,
-                     "notes": "Dica executiva do personal trainer premium para controle de movimento e integridade física (ex: Controlar subida, não curvar a lombar)",
-                     "trainingPhase": "Aquecimento" (ou "Principal", "Acessório", "Alongamento")
-                  }
-               ]
-            }
+            SUA TAREFA É CRIAR UM CICLO COMPLETO DE $workoutsPerWeek TREINOS:
+            Retorne EXATAMENTE UM ARRAY JSON com todos os treinos da semana, usando o formato abaixo para cada treino:
+            [
+               {
+                  "title": "Treino A: Puxada & Costas Pesado",
+                  "splitType": "$splitType",
+                  "focus": "$focus",
+                  "exercises": [
+                     {
+                        "exerciseId": "identificador_unico_minusculo_com_sublinhado",
+                        "name": "Nome do exercício em Português",
+                        "muscleGroup": "Grupo muscular principal",
+                        "targetMuscleDetail": "Porção muscular foco",
+                        "sets": 4,
+                        "repsRange": "8-12",
+                        "tempo": "3-1-1-0",
+                        "restSeconds": 90,
+                        "advancedTechnique": "Nenhuma",
+                        "intensityRPE": 8,
+                        "notes": "Dica executiva",
+                        "trainingPhase": "Principal"
+                     }
+                  ]
+               },
+               {
+                  "title": "Treino B: ..." // próximo treino
+               }
+            ]
          """.trimIndent()
 
         try {
@@ -175,8 +208,8 @@ object GeminiClient {
                     .getString("text")
 
                 val cleanedJson = cleanJsonString(textResponse)
-                val generatedWorkout = parseWorkoutJson(cleanedJson)
-                if (generatedWorkout != null) {
+                val generatedWorkout = parseWorkoutCycleJson(cleanedJson)
+                if (generatedWorkout.isNotEmpty()) {
                     GeneratedWorkoutResult.Success(generatedWorkout, isLocalFallback = false)
                 } else {
                     GeneratedWorkoutResult.Error("Erro ao analisar a resposta gerada. Gerando localmente.")
@@ -185,7 +218,11 @@ object GeminiClient {
         } catch (e: Exception) {
             Log.e(TAG, "Exception during Gemini flow: ", e)
             GeneratedWorkoutResult.Success(
-                getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek),
+                listOf(
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "A"),
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "B"),
+                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "C")
+                ),
                 isLocalFallback = true
             )
         }
@@ -202,6 +239,52 @@ object GeminiClient {
             str = str.substring(0, str.length - 3)
         }
         return str.trim()
+    }
+
+    private fun parseWorkoutCycleJson(jsonStr: String): List<GeneratedWorkout> {
+        return try {
+            val listType = Types.newParameterizedType(List::class.java, GeneratedWorkout::class.java)
+            val adapter = moshi.adapter<List<GeneratedWorkout>>(listType)
+            adapter.fromJson(jsonStr) ?: emptyList()
+        } catch (e: Exception) {
+            Log.e(TAG, "Moshi parsing failed for array", e)
+            val list = mutableListOf<GeneratedWorkout>()
+            try {
+                val jsonArray = JSONArray(jsonStr)
+                for (i in 0 until jsonArray.length()) {
+                    val json = jsonArray.getJSONObject(i)
+                    val title = json.getString("title")
+                    val split = json.getString("splitType")
+                    val focus = json.getString("focus")
+                    val exercisesArray = json.getJSONArray("exercises")
+                    val exercisesList = mutableListOf<WorkoutExercise>()
+                    for (j in 0 until exercisesArray.length()) {
+                        val exerciseJson = exercisesArray.getJSONObject(j)
+                        exercisesList.add(
+                            WorkoutExercise(
+                                exerciseId = exerciseJson.optString("exerciseId", "custom_${System.currentTimeMillis()}"),
+                                name = exerciseJson.getString("name"),
+                                muscleGroup = exerciseJson.getString("muscleGroup"),
+                                targetMuscleDetail = exerciseJson.optString("targetMuscleDetail", "Músculo principal"),
+                                sets = exerciseJson.optInt("sets", 4),
+                                repsRange = exerciseJson.optString("repsRange", "8-12"),
+                                tempo = exerciseJson.optString("tempo", "2-0-2-0"),
+                                restSeconds = exerciseJson.optInt("restSeconds", 90),
+                                advancedTechnique = exerciseJson.optString("advancedTechnique", "Nenhuma"),
+                                intensityRPE = exerciseJson.optInt("intensityRPE", 8),
+                                notes = exerciseJson.optString("notes", ""),
+                                trainingPhase = exerciseJson.optString("trainingPhase", "Principal")
+                            )
+                        )
+                    }
+                    list.add(GeneratedWorkout(title, split, focus, exercisesList))
+                }
+                list
+            } catch (je: Exception) {
+                Log.e(TAG, "Manual JSON array parsing failed", je)
+                emptyList()
+            }
+        }
     }
 
     private fun parseWorkoutJson(jsonStr: String): GeneratedWorkout? {
@@ -251,12 +334,13 @@ object GeminiClient {
         specialNotes: String,
         experienceLevel: String,
         workoutsPerDay: Int,
-        workoutsPerWeek: Int
+        workoutsPerWeek: Int,
+        dayId: String = "A"
     ): GeneratedWorkout {
         val title = if (workoutsPerDay > 1) {
-            "PowerHigh Elite AM/PM - $splitType ($focus)"
+            "Treino $dayId: Elite AM/PM - $splitType ($focus)"
         } else {
-            "PowerHigh Elite - $splitType ($focus)"
+            "Treino $dayId: Elite - $splitType ($focus)"
         }
 
         // 1. Determine size (total exercises) based on duration in specialNotes or default
@@ -1021,7 +1105,7 @@ object GeminiClient {
 }
 
 sealed class GeneratedWorkoutResult {
-    data class Success(val workout: GeneratedWorkout, val isLocalFallback: Boolean) : GeneratedWorkoutResult()
+    data class Success(val cycle: List<GeneratedWorkout>, val isLocalFallback: Boolean) : GeneratedWorkoutResult()
     data class Error(val message: String) : GeneratedWorkoutResult()
 }
 

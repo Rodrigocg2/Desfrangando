@@ -1,13 +1,13 @@
 package com.example.data
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Room
 import com.example.model.SavedWorkout
 import com.example.model.WorkoutHistory
+import com.example.model.WeightHistory
 
-@Database(entities = [SavedWorkout::class, WorkoutHistory::class, com.example.model.WeightHistory::class], version = 2, exportSchema = false)
+@Database(entities = [SavedWorkout::class, WorkoutHistory::class, WeightHistory::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
 
@@ -15,15 +15,13 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun getDatabase(context: Context): AppDatabase {
+        fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "apexforce_workout_db"
-                )
-                .fallbackToDestructiveMigration()
-                .build()
+                    "gym_app_database"
+                ).build()
                 INSTANCE = instance
                 instance
             }
