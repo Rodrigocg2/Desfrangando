@@ -20,6 +20,9 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
+    - name: Decodificar a Keystore de Debug
+      run: base64 --decode debug.keystore.base64 > debug.keystore
+
     - name: Recriar o Gradle Wrapper e Compilar o APK
       run: |
         gradle wrapper
