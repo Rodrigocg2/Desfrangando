@@ -5803,8 +5803,20 @@ fun ManualWorkoutCreatorScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                            items(availableExercises.filter { it.name.contains(searchQuery, ignoreCase = true) || it.primaryMuscleName.contains(searchQuery, ignoreCase = true) }) { ref ->
-                                Text("${ref.name} (${ref.primaryMuscleName})", modifier = Modifier.fillMaxWidth().clickable { selectedRef = ref }.padding(8.dp), color = Color.White, fontSize = 14.sp)
+                            val filtered = availableExercises.filter { 
+                                it.name.contains(searchQuery, ignoreCase = true) || 
+                                it.primaryMuscleName.contains(searchQuery, ignoreCase = true) ||
+                                it.equipment.contains(searchQuery, ignoreCase = true) ||
+                                it.type.contains(searchQuery, ignoreCase = true) ||
+                                it.difficulty.contains(searchQuery, ignoreCase = true) ||
+                                it.primaryMuscleCode.contains(searchQuery, ignoreCase = true) ||
+                                it.secondaryMuscleName.contains(searchQuery, ignoreCase = true)
+                            }
+                            items(filtered) { ref ->
+                                Column(modifier = Modifier.fillMaxWidth().clickable { selectedRef = ref }.padding(8.dp)) {
+                                    Text(ref.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("${ref.primaryMuscleName} • ${ref.equipment} • ${ref.type} • ${ref.difficulty}", color = Color.Gray, fontSize = 12.sp)
+                                }
                                 androidx.compose.material3.HorizontalDivider(color = Color.DarkGray)
                             }
                         }

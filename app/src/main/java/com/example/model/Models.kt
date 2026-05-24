@@ -104,12 +104,19 @@ data class RoutineCategory(
 data class ExerciseExecutionReference(
     val id: String,
     val name: String,
-    val primaryMuscleCode: String, // LATS, CHEST, QUAD, HAMSTRING, SHOULDER, BICEPS, TRICEPS, LOWER_BACK
+    val primaryMuscleCode: String, // LATS, CHEST, QUAD, HAMSTRING, SHOULDER, BICEPS, TRICEPS, LOWER_BACK, GLUTES, CALVES, ABS, CARDIO
     val primaryMuscleName: String,
+    val secondaryMuscleName: String = "",
+    val equipment: String = "Livre", // Livre, Halter, Barra, Máquina, Cabo, Smith, Peso do Corpo, Cardio
+    val difficulty: String = "Iniciante", // Iniciante, Intermediário, Avançado
+    val type: String = "Composto", // Composto, Isolador, Cardio
     val executionDetails: List<String>, // Step by step
     val highPerformanceTips: List<String>, // Pro tips for high-tension and stimulus
+    val commonMistakes: List<String> = emptyList(), // Erros comuns
     val biomechanicalTempo: String, // recommended tempo
-    val jointPathType: String // CHEST_PRESS, DEAD_LIFT, SQUAT, LAT_PULLDOWN, LATERAL_RAISE, BICEPS_CURL, TRICEPS_EXTENSION, LEG_PRESS
+    val jointPathType: String, // CHEST_PRESS, DEAD_LIFT, SQUAT, LAT_PULLDOWN, LATERAL_RAISE, BICEPS_CURL, TRICEPS_EXTENSION, LEG_PRESS
+    val gifUrl: String = "",
+    val imageUrl: String = ""
 )
 
 @Entity(tableName = "weight_history")
