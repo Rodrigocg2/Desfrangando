@@ -1,6 +1,0 @@
-{
-  "name": "Desfrangando",
-  "description": "Aplicativo de musculação de alto rendimento com geração de treinos personalizada e guias de execução em vídeo interativos.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
