@@ -191,6 +191,8 @@ fun WorkoutGeneratorScreen(
     val weight by viewModel.userWeight.collectAsState()
 
     var notesInput by remember { mutableStateOf("") }
+    var heightInputLocal by remember { mutableStateOf(height.toInt().toString()) }
+    var weightInputLocal by remember { mutableStateOf(String.format(Locale.US, "%.1f", weight)) }
 
     if (showSuccessDialog && lastGenerated != null) {
         AlertDialog(
@@ -347,8 +349,16 @@ fun WorkoutGeneratorScreen(
                             Text("Altura (cm)", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             OutlinedTextField(
-                                value = height.toInt().toString(),
-                                onValueChange = { val h = it.toFloatOrNull() ?: 170f; viewModel.updateHeight(h) },
+                                value = heightInputLocal,
+                                onValueChange = {
+                                    if (it.all { char -> char.isDigit() } || it.isEmpty()) {
+                                        heightInputLocal = it
+                                        val h = it.toFloatOrNull()
+                                        if (h != null && h > 0) {
+                                            viewModel.updateHeight(h)
+                                        }
+                                    }
+                                },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -366,8 +376,17 @@ fun WorkoutGeneratorScreen(
                             Text("Peso (kg)", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             OutlinedTextField(
-                                value = String.format(Locale.US, "%.1f", weight),
-                                onValueChange = { val w = it.toFloatOrNull() ?: 70f; viewModel.updateWeight(w) },
+                                value = weightInputLocal,
+                                onValueChange = {
+                                    val sanitized = it.replace(',', '.')
+                                    if (sanitized.isEmpty() || sanitized.toDoubleOrNull() != null || sanitized == "." || sanitized.endsWith(".")) {
+                                        weightInputLocal = it
+                                        val w = sanitized.toFloatOrNull()
+                                        if (w != null && w > 0f) {
+                                            viewModel.updateWeight(w)
+                                        }
+                                    }
+                                },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -835,79 +854,172 @@ fun WorkoutGeneratorScreen(
 // 2. --- MY SAVED WORKOUTS SCREEN ---
 
 @Composable
+@Composable
 fun SavedWorkoutsListScreen(
     viewModel: WorkoutViewModel,
     onNavigateToGenerator: () -> Unit
 ) {
     val savedWorkouts by viewModel.savedWorkouts.collectAsState()
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .testTag("saved_workouts_screen")
-    ) {
-        Text(
-            text = "PRESCRIÇÕES",
-            style = MaterialTheme.typography.labelLarge,
-            color = TechCyan,
-            fontFamily = TechMonospace
-        )
-        Text(
-            text = "Meus Treinos",
-            style = MaterialTheme.typography.displayLarge,
-            color = TextPrimary
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+    var showManualCreator by remember { mutableStateOf(false) }
+    var workoutToEditByManualCreator by remember { mutableStateOf<SavedWorkout?>(null) }
+    var workoutToEditProperties by remember { mutableStateOf<SavedWorkout?>(null) }
+    var workoutToShare by remember { mutableStateOf<SavedWorkout?>(null) }
 
-        if (savedWorkouts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+    val sortedWorkouts = remember(savedWorkouts) {
+        savedWorkouts.sortedWith(
+            compareByDescending<SavedWorkout> { it.isFavorite }
+                .thenByDescending { it.dateCreated }
+        )
+    }
+
+    if (showManualCreator) {
+        ManualWorkoutCreatorScreen(
+            initialWorkout = workoutToEditByManualCreator,
+            onDismiss = { showManualCreator = false },
+            onSave = { title, category, emoji, colorHex, splitType, focus, exercises ->
+                val moshi = com.squareup.moshi.Moshi.Builder()
+                    .addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory())
+                    .build()
+                val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+                val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+                val exercisesJson = adapter.toJson(exercises) ?: "[]"
+
+                if (workoutToEditByManualCreator == null) {
+                    viewModel.createManualWorkout(title, category, emoji, colorHex, splitType, focus, exercises)
+                } else {
+                    val updated = workoutToEditByManualCreator!!.copy(
+                        title = title,
+                        category = category,
+                        emoji = emoji,
+                        colorHex = colorHex,
+                        splitType = splitType,
+                        focus = focus,
+                        exercisesJson = exercisesJson
+                    )
+                    viewModel.manualSaveWorkout(updated)
+                }
+                showManualCreator = false
+            }
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .testTag("saved_workouts_screen")
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.DarkGray)
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Nenhuma prescrição salva ainda.",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "PRESCRIÇÕES",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TechCyan,
+                        fontFamily = TechMonospace
+                    )
+                    Text(
+                        text = "Meus Treinos",
+                        style = MaterialTheme.typography.displayLarge,
                         color = TextPrimary
                     )
-                    Text(
-                        "Gere seu primeiro programa biomecânico com IA clicando no botão abaixo.",
-                        color = TextMuted,
-                        textAlign = TextAlign.Center,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = onNavigateToGenerator,
-                        colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color(0xFF381E72))
-                    ) {
-                        Text("Ir para Gerador de Treinos")
+                }
+                Button(
+                    onClick = {
+                        workoutToEditByManualCreator = null
+                        showManualCreator = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text("CRIAR TREINO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(savedWorkouts, key = { it.id }) { workout ->
-                    SavedWorkoutCard(
-                        workout = workout,
-                        onStart = { viewModel.startWorkoutSession(workout) },
-                        onDelete = { viewModel.deleteWorkout(workout.id) },
-                        onPlayVideo = { url -> viewModel.playYouTubeVideo(url) }
-                    )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (sortedWorkouts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.DarkGray)
+                        Text(
+                            "Nenhuma prescrição salva ainda.",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            "Gere seu primeiro programa biomecânico com IA ou clique em 'CRIAR TREINO' para prescrever manualmente.",
+                            color = TextMuted,
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = onNavigateToGenerator,
+                            colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Ir para Gerador de Treinos", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(sortedWorkouts, key = { it.id }) { workout ->
+                        SavedWorkoutCard(
+                            workout = workout,
+                            onStart = { viewModel.startWorkoutSession(workout) },
+                            onDelete = { viewModel.deleteWorkout(workout.id) },
+                            onPlayVideo = { url -> viewModel.playYouTubeVideo(url) },
+                            onFavorite = { viewModel.toggleFavoriteWorkout(workout.id) },
+                            onDuplicate = { viewModel.duplicateWorkout(workout) },
+                            onEdit = {
+                                workoutToEditByManualCreator = workout
+                                showManualCreator = true
+                            },
+                            onEditCustomProperties = { workoutToEditProperties = workout },
+                            onShare = { workoutToShare = workout }
+                        )
+                    }
                 }
             }
         }
+    }
+
+    workoutToEditProperties?.let { workout ->
+        EditWorkoutDialog(
+            workout = workout,
+            onDismiss = { workoutToEditProperties = null },
+            onSave = { name, category, emoji, colorHex ->
+                viewModel.updateWorkoutProperties(workout.id, name, category, emoji, colorHex)
+                workoutToEditProperties = null
+            }
+        )
+    }
+
+    workoutToShare?.let { workout ->
+        ShareWorkoutDialog(
+            workout = workout,
+            onDismiss = { workoutToShare = null }
+        )
     }
 }
 
@@ -916,14 +1028,20 @@ fun SavedWorkoutCard(
     workout: SavedWorkout,
     onStart: () -> Unit,
     onDelete: () -> Unit,
-    onPlayVideo: (String) -> Unit
+    onPlayVideo: (String) -> Unit,
+    onFavorite: () -> Unit,
+    onDuplicate: () -> Unit,
+    onEdit: () -> Unit,
+    onEditCustomProperties: () -> Unit,
+    onShare: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val exercises = workout.getExercises()
+    val themeCardColor = parseHexColor(workout.colorHex)
     
     Card(
         colors = CardDefaults.cardColors(containerColor = CarbonSurface),
-        border = BorderStroke(1.dp, BorderDark),
+        border = BorderStroke(1.2.dp, themeCardColor),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded }
@@ -937,44 +1055,94 @@ fun SavedWorkoutCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        workout.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = ToxicGreen,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(workout.emoji, fontSize = 20.sp)
+                        Text(
+                            workout.title,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = onFavorite,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (workout.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "Favoritar",
+                                tint = if (workout.isFavorite) Color(0xFFFFD700) else Color.Gray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    if (workout.category.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(themeCardColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                .border(0.5.dp, themeCardColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                workout.category.uppercase(),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeCardColor,
+                                fontFamily = TechMonospace
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.AltRoute, contentDescription = null, modifier = Modifier.size(12.dp), tint = TechCyan)
+                            Icon(Icons.Default.AltRoute, contentDescription = null, modifier = Modifier.size(11.dp), tint = TechCyan)
                             Text(workout.splitType, fontSize = 11.sp, fontFamily = TechMonospace, color = TechCyan)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.MonitorWeight, contentDescription = null, modifier = Modifier.size(12.dp), tint = ElectricOrange)
+                            Icon(Icons.Default.MonitorWeight, contentDescription = null, modifier = Modifier.size(11.dp), tint = ElectricOrange)
                             Text(workout.focus, fontSize = 11.sp, fontFamily = TechMonospace, color = ElectricOrange)
                         }
                     }
                 }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.testTag("btn_delete_${workout.id}")
-                ) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "Deletar treino", tint = Color.Red)
-                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Default.Layers, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.LightGray)
-                Text("${exercises.size} Exercícios de Alto Rendimento", fontSize = 13.sp, color = TextPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.Layers, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.LightGray)
+                    Text("${exercises.size} Exercícios de Alto Rendimento", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                }
+
+                // Quick compact actions toolbar
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Edit, contentDescription = "Editar exercícios", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onEditCustomProperties, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Palette, contentDescription = "Personalizar cores e nomes", tint = themeCardColor, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onDuplicate, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "Duplicar treino", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Share, contentDescription = "Compartilhar", tint = TechCyan, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = "Excluir", tint = Color.Red, modifier = Modifier.size(16.dp))
+                    }
+                }
             }
 
-            // Expanded view of exercies inside this workout
+            // Expanded view of exercises inside this workout
             if (expanded) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Divider(color = BorderDark)
@@ -1085,14 +1253,14 @@ fun SavedWorkoutCard(
             Button(
                 onClick = onStart,
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color(0xFF381E72)),
+                colors = ButtonDefaults.buttonColors(containerColor = themeCardColor, contentColor = Color.Black),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("btn_start_workout_${workout.id}")
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("INICIAR SESSÃO DE TREINO", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("INICIAR SESSÃO DE TREINO", fontWeight = FontWeight.Black, fontSize = 13.sp)
                 }
             }
         }
@@ -1672,6 +1840,32 @@ fun ActiveWorkoutSessionHud(viewModel: WorkoutViewModel) {
                             fontSize = 12.sp,
                             color = TextMuted
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .clickable {
+                                    viewModel.replaceActiveExercise(currentIndex)
+                                }
+                                .background(Color(0xFF2A1010), RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapCalls,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                "NÃO CONSIGO FAZER (Substituir por IA)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFFFEAEA),
+                                fontFamily = TechMonospace
+                            )
+                        }
                     }
                     
                     // Help Execution Video Overlay Button
@@ -1838,9 +2032,14 @@ fun ActiveWorkoutSessionHud(viewModel: WorkoutViewModel) {
                             BasicTextFieldCustom(
                                 value = weightStr,
                                 onValueChange = {
-                                    weightStr = it
-                                    val w = it.toDoubleOrNull() ?: 0.0
-                                    viewModel.updateSetRecord(currentIndex, setIdx, w, repsStr.toIntOrNull() ?: 8, record.isChecked, record.wasRpeMet)
+                                    val sanitized = it.trim().replace(',', '.')
+                                    if (sanitized.isEmpty() || sanitized.toDoubleOrNull() != null || sanitized == "." || sanitized.endsWith(".")) {
+                                        weightStr = sanitized
+                                        val w = sanitized.toDoubleOrNull()
+                                        if (w != null) {
+                                            viewModel.updateSetRecord(currentIndex, setIdx, w, repsStr.toIntOrNull() ?: 8, record.isChecked, record.wasRpeMet)
+                                        }
+                                    }
                                 },
                                 modifier = Modifier.width(42.dp),
                                 isChecked = record.isChecked
@@ -1880,9 +2079,12 @@ fun ActiveWorkoutSessionHud(viewModel: WorkoutViewModel) {
                             BasicTextFieldCustom(
                                 value = repsStr,
                                 onValueChange = {
-                                    repsStr = it
-                                    val r = it.toIntOrNull() ?: 0
-                                    viewModel.updateSetRecord(currentIndex, setIdx, weightStr.toDoubleOrNull() ?: 10.0, r, record.isChecked, record.wasRpeMet)
+                                    val sanitized = it.filter { char -> char.isDigit() }
+                                    repsStr = sanitized
+                                    val r = sanitized.toIntOrNull()
+                                    if (r != null) {
+                                        viewModel.updateSetRecord(currentIndex, setIdx, weightStr.toDoubleOrNull() ?: 10.0, r, record.isChecked, record.wasRpeMet)
+                                    }
                                 },
                                 modifier = Modifier.width(36.dp),
                                 isChecked = record.isChecked

@@ -689,6 +689,134 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    fun toggleFavoriteWorkout(workoutId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val workout = repository.getSavedWorkoutById(workoutId) ?: return@launch
+            val updated = workout.copy(isFavorite = !workout.isFavorite)
+            repository.saveWorkout(updated)
+        }
+    }
+
+    fun duplicateWorkout(workout: SavedWorkout) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val duplicated = workout.copy(
+                id = UUID.randomUUID().toString(),
+                title = "${workout.title} (Cópia)",
+                dateCreated = System.currentTimeMillis(),
+                isFavorite = false
+            )
+            repository.saveWorkout(duplicated)
+        }
+    }
+
+    fun updateWorkoutProperties(workoutId: String, title: String, category: String, emoji: String, colorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val workout = repository.getSavedWorkoutById(workoutId) ?: return@launch
+            val updated = workout.copy(
+                title = title,
+                category = category,
+                emoji = emoji,
+                colorHex = colorHex
+            )
+            repository.saveWorkout(updated)
+        }
+    }
+
+    fun replaceActiveExercise(exerciseIndex: Int) {
+        val current = _activeWorkout.value ?: return
+        val exercises = current.getExercises().toMutableList()
+        if (exerciseIndex in exercises.indices) {
+            val exToReplace = exercises[exerciseIndex]
+            
+            // Find equivalent exercise targeting the same muscle group
+            val alternatives = when (exToReplace.muscleGroup.uppercase()) {
+                "PEITO" -> listOf(
+                     "Crucifixo com Halteres" to "Foco em alongamento e estímulo mecânico do peitoral maior.",
+                     "Flexão de Braços (Solo)" to "Exercício funcional excelente com peso corporal focado em segurança articular.",
+                     "Supino Unilateral com Halteres" to "Trabalho cinesiológico unilateral que minimiza pressões assimétricas.",
+                     "Peck Deck" to "Isolamento tensional contínuo das fibras internas do peito."
+                )
+                "COSTAS", "DORSO", "LATS" -> listOf(
+                     "Remada Curvada com Halteres" to "Remada focada em dorsal largo com amplitude de movimento livre.",
+                     "Puxada Supinada Fechada" to "Foco mecânico favorável para bíceps e latíssimo posterior.",
+                     "Remada Baixa Sentado" to "Tensão horizontal contínua excelente para o miolo das costas."
+                )
+                "PERNAS", "QUAD", "GLÚTEO", "PANTURRILHA" -> listOf(
+                     "Passante Recuo com Halteres" to "Conexão mente-músculo incrível, menor impacto articular.",
+                     "Leg Press 45 Unilateral" to "Isolamento sob carga pesada neutralizando a coluna lombar.",
+                     "Cadeira Extensora" to "Foco tensional puro na porção reto femoral do quadríceps."
+                )
+                "OMBRO", "OMBROS" -> listOf(
+                     "Desenvolvimento com Halteres" to "Foco multiarticular na porção anterior e lateral do deltoide.",
+                     "Elevação Frontal com Halter" to "Estímulo isolador frontal para reequilíbrio escapular."
+                )
+                "BÍCEPS", "BRAÇO" -> listOf(
+                     "Rosca Martelo Alternada" to "Trabalho focado no braquiorradial e bíceps cabeça longa.",
+                     "Rosca Concentrada Unilateral" to "Isolamento mecânico absoluto contra batota de ombro."
+                )
+                "TRÍCEPS" -> listOf(
+                     "Tríceps na Polia com Corda" to "Estímulo articular suave com pico de contração acentuado.",
+                     "Tríceps Coice com Halter" to "Definição de tríceps cabeça lateral mantendo a escápula fixa."
+                )
+                else -> listOf(
+                     "Prancha Abdominal Isométrica" to "Estabilização central pura sem impacto espinal.",
+                     "Flexão com Apoio dos Joelhos" to "Substituição metabólica segura e de fácil execução."
+                )
+            }
+            
+            val selectedAlt = alternatives.random()
+            val newEx = exToReplace.copy(
+                name = selectedAlt.first,
+                notes = "Adaptação Inteligente IA: " + selectedAlt.second,
+                exerciseId = "sub_${selectedAlt.first.lowercase().replace(" ", "_")}"
+            )
+            exercises[exerciseIndex] = newEx
+            
+            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+            val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+            val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+            val updatedJson = adapter.toJson(exercises) ?: "[]"
+            
+            val updatedWorkout = current.copy(exercisesJson = updatedJson)
+            _activeWorkout.value = updatedWorkout
+            
+            // Persist locally
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.saveWorkout(updatedWorkout)
+            }
+        }
+    }
+
+    fun createManualWorkout(
+        title: String,
+        category: String,
+        emoji: String,
+        colorHex: String,
+        splitType: String,
+        focus: String,
+        exercises: List<WorkoutExercise>
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+            val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+            val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+            val json = adapter.toJson(exercises) ?: "[]"
+
+            val saved = SavedWorkout(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                splitType = splitType,
+                focus = focus,
+                isFavorite = false,
+                category = category,
+                emoji = emoji,
+                colorHex = colorHex,
+                exercisesJson = json
+            )
+            repository.saveWorkout(saved)
+        }
+    }
 }
 
 // Model-friendly dynamic class for set rows

@@ -47,57 +47,87 @@ object GeminiClient {
         }
 
         val systemInstruction = """
-            Você é um Treinador Científico de Musculação de Alto Rendimento com PhD em Cinesiologia e treinador de atletas elite IFBB.
-            Gere um programa de treinamento focado em alta intensidade mecânica, sobrecarga progressiva, controle de tempo (tempo sob tensão) e técnicas avançadas (como Rest-Pause, Drop-sets, Myo-reps, SST, Cluster Sets).
-            Você DEVE responder EXCLUSIVAMENTE com um objeto JSON válido, sem tags markdown, sem comentários, contendo exatamente a estrutura descrita.
+            Você é um Treinador Científico de Musculação de Alto Rendimento com PhD em Cinesiologia e treinador de atletas classe Elite.
+            Você gera rotinas impecáveis, que parecem prescritas por um personal trainer premium de altíssimo nível.
+            Regra Fundamental: Você DEVE responder EXCLUSIVAMENTE com o objeto JSON válido, sem tags markdown (como ```json ou ```) e sem qualquer texto explicativo fora do JSON.
         """.trimIndent()
 
         val prompt = """
-            Gere um treino de Alto Rendimento com os seguintes parâmetros:
-            - Divisão / Grupo de Foco: $splitType (Exemplos: Tração/Empurrão/Pernas, Arnold Split, Ombros e Braços, Peito e Costas, Misto, Superior/Inferior)
-            - Treinos ao dia: $workoutsPerDay vez(es) ao dia
-            - Dias de treino na semana: $workoutsPerWeek dias por semana
-            - Objetivo Principal: $focus (Exemplos: Hipertrofia Miofibrilar, Força Máxima RPE10, Densidade Sarcoplasmática)
-            - Informações adicionais / Notas: $specialNotes
-            - Nível de Experiência: $experienceLevel (Elite, Avançado, com tantos anos de experiência informados)
+            Gere um programa de treinamento de musculação ultra-personalizado e profissional de acordo com as seguintes regras de ouro cinesiológicas:
 
-            DIRETRIZ DE DIVISÃO MUSCULAR:
-            - Se a Divisão for ABC_DENSIDADE (Musculação: Foco na Densidade): Crie uma rotina com cargas pesadas, mantendo a execução correta para estimular a retenção/aumento de massa muscular enquanto reduz gordura. Use variações de 3 a 4 séries de 8 a 12 repetições. Adicione técnicas de intensidade como Drop-sets ou Supersets ao final para otimizar o gasto calórico.
-            - Se a Divisão for ABC_AEROBICO (Aeróbico Catalisador): Crie uma rotina combinando exercícios cardiovasculares HIIT (treino intervalado de alta intensidade) e Cardio Moderado (caminhada rápida, transport, bicicleta de 30 a 40 minutos) focado em criar déficit calórico para maximizar queima de gordura e acelerar o metabolismo.
-            - Se o usuário selecionar ou for treinar 3 vezes na semana (workoutsPerWeek = 3), crie um maravilhoso misto de membros Superiores e Inferiores (Superior/Inferior), ou uma estratégia de um dia para cada membro/grupo muscular em rotação (Push/Pull/Legs).
-            - Se Divisão for MISTO_PERNA_BRACO_PEITO, misture de forma equilibrada exercícios focados em Pernas (quadriceps/posterior), Braços (biceps/triceps) e Peito (peitoral).
-            - Se Divisão for MISTO_SUP_INF, misture exercícios de Membros Superiores (Dorso/Peito/Ombro) e Inferiores (Pernas).
+            DADOS E PREPARO DO ATLETA:
+            - Divisão Escolhida pelo Usuário: $splitType
+            - Dias de Treino na Semana: $workoutsPerWeek dias por semana
+            - Objetivo Principal: $focus (Hipertrofia, Emagrecimento, Definição, Força, Condicionamento, Recomposição corporal)
+            - Nível de Treinabilidade: $experienceLevel (Iniciante, Intermediário, Avançado)
+            - Informações adicionais / Notas do Perfil: $specialNotes
 
-            O treino gerado DEVE conter obrigatoriamente um ciclo completo e estruturado nas seguintes 4 fases organizadas em ordem cronológica de execução:
-            1. No mínimo 1 exercício de "Aquecimento" focado em flexibilidade dinâmica, mobilidade articular ou ativação neural inicial.
-            2. De 2 a 3 exercícios "Principal" multicompostos de sobrecarga progressiva pesada.
-            3. De 1 a 2 exercícios "Acessório" de isolamento, foco de compressão e estresse metabólico.
-            4. No mínimo 1 exercício de "Alongamento" focado em descompressão articular, flexibilidade passiva ou relaxamento miofascial.
+            REGRAS DE DIVISÃO DE TREINO E ENQUADRAMENTO DA IA:
+            1. Se a Divisão for "ABC":
+               - Crie detalhadamente uma divisão de treino contendo 3 treinos diferentes (Treino A, Treino B, Treino C) que dividam harmonicamente o corpo inteiro. Exemplo clássico: Treino A (Peito + Tríceps), Treino B (Costas + Bíceps), Treino C (Pernas + Ombros + Abdômen).
+            2. Se a Divisão for "ABCD":
+               - Crie 4 treinos separados (Treino A, Treino B, Treino C, Treino D). Exemplo: A (Peito), B (Costas), C (Pernas), D (Ombros + Braços).
+            3. Se a Divisão for "ABCDE":
+               - Crie 5 treinos diferentes (Treino A, Treino B, Treino C, Treino D, Treino E), um para cada dia.
+            4. Se a Divisão for "Push Pull Legs":
+               - Organize em movimentos de "Empurrar" (Peito/Ombro/Tríceps), "Puxar" (Costas/Bíceps) e "Membros Inferiores". Se workoutsPerWeek = 6, crie uma estrutura que se repete 2x, ou divida-a adequadamente.
+            5. Se a Divisão for "Upper Lower":
+               - Crie treinos para Membros Superiores (Upper) e Membros Inferiores (Lower). Se o usuário treina 4 dias, crie Upper A, Lower A, Upper B, Lower B.
+            6. Distribuição inteligente conforme dias por semana (workoutsPerWeek):
+               - Se treina 3 dias: Distribua o corpo inteiro nos 3 treinos, evite sobrecarga sistêmica, equilibre recuperação. Exemplo: Dia 1 (Peito, Ombro, Tríceps), Dia 2 (Costas, Bíceps), Dia 3 (Pernas, Abdômen).
+               - Se treina 4 dias: Divida melhor os grupos musculares, permitindo mais exercícios e volume por seção. Exemplo: Dia 1 (Peito), Dia 2 (Costas), Dia 3 (Pernas), Dia 4 (Ombros + Braços).
+               - Se treina 5 ou 6 dias: Incremente o volume semanal estrategicamente, aumente as técnicas avançadas e melhore o foco por grupo muscular.
 
-            Retorne no seguinte formato JSON estrito:
+            REGRAS DE VOLUME E DURAÇÃO (IMPORTANTÍSSIMO):
+            Adapte estritamente o número total de exercícios do treino gerado com base no tempo/duração escolhido pelo usuário nas notas/opções:
+            - Se Duração do Treino for 30 minutos -> Gere EXATAMENTE 5 exercícios no total.
+            - Se Duração do Treino for 45 minutos -> Gere EXATAMENTE 6 exercícios no total.
+            - Se Duração do Treino for 60 minutos -> Gere EXATAMENTE 7 exercícios no total.
+            - Se Duração do Treino for 90 minutos -> Gere EXATAMENTE 8 exercícios no total.
+            O tempo total do treino deve ser rigorosamente calculado considerando: Séries * (Tempo de Execução da repetição + Intervalo de Descanso). Nunca exceda o tempo disponível de aula ou crie treinos impraticáveis.
+
+            REGRAS DE DESCANSO ENTRE AS SÉRIES (ADAPTADO POR OBJETIVO):
+            Configure o campo "restSeconds" para cada exercício baseado exatamente no objetivo:
+            - Se Objetivo for "Hipertrofia" ou "Recomposição corporal" -> Descanso de 60 a 90 segundos por série (60 a 90).
+            - Se Objetivo for "Força" -> Descanso tensional de 120 a 180 segundos por série (120 a 180).
+            - Se Objetivo for "Emagrecimento" ou "Definição" -> Descanso metabólico curto de 30 a 60 segundos por série (30 a 60).
+            - Se Objetivo for "Condicionamento" ou "Endurance" ou "Cardio" -> Descanso de 30 a 45 segundos por série (30 a 45).
+
+            ORDEM DOS EXERCÍCIOS:
+            Estruture a lista de exercícios na ordem sequencial perfeita de execução na academia:
+            1. Comece SEMPRE com exercícios compostos e multiarticulares de alta demanda (ex: Supino, Agachamento, Levantamento Terra, Puxadas).
+            2. Progrida para exercícios isoladores e acessórios (ex: Elevações laterais, Roscas, Extensões de tríceps).
+            3. Finalize com exercícios abdominais, panturrilhas ou cardio leve, aplicando técnicas metabólicas quando apropriado de acordo com o nível.
+
+            ADAPTAÇÃO E SEGURANÇA POR NÍVEL:
+            - Nível "Iniciante": Menos volume, priorize exercícios simples e com maior uso de máquinas guiadas para preservar as articulações e guiar o padrão motor. Sem técnicas de alta falha.
+            - Nível "Intermediário": Volume moderado, inclua exercícios livres clássicos excelentes com foco em padrão de movimento correto.
+            - Nível "Avançado": Permita técnicas de alta intensidade controladas nas últimas séries dos exercícios principais/acessórios, tais como "Drop-set", "Rest-pause", ou "Bi-set".
+            - SEGURANÇA MÁXIMA: A IA NUNCA deve repetir treinos pesados para o mesmo músculo em dias seguidos (respeite a recuperação de 48h-72h) e NUNCA coloque pernas pesadas 2 dias seguidos.
+
+            Retorne no seguinte formato estrito JSON (Substitua as variáveis pelo treino gerado para o dia em questão):
             {
-               "title": "Nome imponente do Treino de Alto Rendimento",
+               "title": "Nome imponente do Treino e o Dia Corrido (ex: Treino A: Dorsal Force & Bíceps)",
                "splitType": "$splitType",
                "focus": "$focus",
                "exercises": [
                   {
-                     "exerciseId": "identificador_unico_minusculo (ex: supino_reto, agachamento_livre, levantamento_terra, puxada_polia_alta, elevacao_lateral, rosca_polia, triceps_testa, ou outro nome correspondente)",
+                     "exerciseId": "identificador_unico_minusculo_com_sublinhado (ex: supino_reto, agachamento_livre, levantamento_terra, puxada_polia_alta, elevacao_lateral, rosca_polia, triceps_testa, leg_press_45, ou um id customizado relevante)",
                      "name": "Nome do exercício em Português",
-                     "muscleGroup": "Grupo muscular principal (Peito, Dorso, Pernas, Ombros, Braços)",
-                     "targetMuscleDetail": "Qual porção muscular específica foca (ex: Cabeça clavicular do peitoral, Cabeça lateral do tríceps)",
+                     "muscleGroup": "Grupo muscular principal (Peito, Dorso, Pernas, Ombros, Braços, Cardio, Abdômen)",
+                     "targetMuscleDetail": "Qual porção muscular foca especificamente (ex: Fibras superiores do peitoral, Vasto lateral do quadríceps)",
                      "sets": 4,
-                     "repsRange": "Faixa de repetições e intensidade de alto nível (ex: 8-10 + 1 drop-set até a falha rpe 10, ou 4x Rest-pause 6+4+3)",
-                     "tempo": "Tempo biomecânico sob tensão em 4 dígitos (ex: 4-0-1-0 para 4s descida excêntrica lenta, 1s contração explosiva)",
-                     "restSeconds": 120,
-                     "advancedTechnique": "Técnica avançada usada (ex: Rest-Pause, Drop-set, Myo-reps, Isometria no Pico, SST, Nenhuma)",
-                     "intensityRPE": 9,
-                     "notes": "Dica avançada de execução fisiológica para ativar mais fibras musculares e prevenir lesões",
+                     "repsRange": "Faixa de repetições (ex: 4 séries de 8-12 reps, ou Pirâmide 12-10-8-6)",
+                     "tempo": "Tempo sob tensão em 4 dígitos (ex: 3-1-1-0 para 3s excêntrica, 1s isométrica, 1s isométrica de contração)",
+                     "restSeconds": 90,
+                     "advancedTechnique": "Técnica avançada usada (ex: Drop-set, Rest-Pause, Bi-set, Nenhuma)",
+                     "intensityRPE": 8,
+                     "notes": "Dica executiva do personal trainer premium para controle de movimento e integridade física (ex: Controlar subida, não curvar a lombar)",
                      "trainingPhase": "Aquecimento" (ou "Principal", "Acessório", "Alongamento")
                   }
                ]
             }
-            Escreva o JSON limpo, sem quebras de linha defeituosas e sem bloco de código markdown (```json). Se o exercício não for um dos 8 conhecidos (supino_reto, agachamento_livre, levantamento_terra, puxada_polia_alta, elevacao_lateral, rosca_polia, triceps_testa, leg_press_45), você pode inventar seu id e nós geraremos uma animação cinesiológica elegante adaptada!
-        """.trimIndent()
+         """.trimIndent()
 
         try {
             // Build Gemini request body
@@ -228,476 +258,765 @@ object GeminiClient {
         } else {
             "PowerHigh Elite - $splitType ($focus)"
         }
-        val exercises = when {
-            splitType.uppercase().contains("MISTO_PERNA_BRACO_PEITO") || (splitType.uppercase().contains("PERNA") && splitType.uppercase().contains("BRAÇO")) -> listOf(
-                WorkoutExercise(
-                    exerciseId = "manguito_rotador",
-                    name = "Aquecimento: Ativação Articular Mista",
-                    muscleGroup = "Ombro",
-                    targetMuscleDetail = "Manguito e Quadril",
-                    sets = 2,
-                    repsRange = "15 reps",
-                    tempo = "2-0-2-0",
-                    restSeconds = 45,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 5,
-                    notes = "Ativação geral dos ombros e quadris para o treino misto explosivo.",
-                    trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "supino_reto",
-                    name = "Supino Reto com Barra",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Peitoral Maior",
-                    sets = 4,
-                    repsRange = "8-10 reps",
-                    tempo = "3-1-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 8,
-                    notes = "Mantenha a base cravada e execute a descida até o osso esterno.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "agachamento_livre",
-                    name = "Agachamento com Barra Livre",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Quadríceps e Glúteos",
-                    sets = 4,
-                    repsRange = "10-12 reps",
-                    tempo = "4-1-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 9,
-                    notes = "Manobra de bracing ativa. Quadril neutro.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "rosca_polia",
-                    name = "Rosca Direta no Cabo",
-                    muscleGroup = "Braços",
-                    targetMuscleDetail = "Bíceps Braquial",
-                    sets = 3,
-                    repsRange = "12 reps",
-                    tempo = "3-0-1-1",
-                    restSeconds = 60,
-                    advancedTechnique = "Isometria 2s no topo",
-                    intensityRPE = 9,
-                    notes = "Aperte o bíceps ferozmente no pico da contração muscular.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "triceps_testa",
-                    name = "Tríceps Testa na Polia",
-                    muscleGroup = "Braços",
-                    targetMuscleDetail = "Tríceps Cabeça Longa",
-                    sets = 3,
-                    repsRange = "12 reps",
-                    tempo = "3-1-1-0",
-                    restSeconds = 60,
-                    advancedTechnique = "Drop-set na última",
-                    intensityRPE = 8,
-                    notes = "Cotovelos paralelos para isolar o tríceps.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_peitoral",
-                    name = "Alongamento: Soltura Geral",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Fáscia Peitoral",
-                    sets = 1,
-                    repsRange = "45s estático",
-                    tempo = "Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Fascial Stretch",
-                    intensityRPE = 5,
-                    notes = "Respire de forma profunda destravando a fáscia do peito e braço.",
-                    trainingPhase = "Alongamento"
-                )
-            )
 
-            splitType.uppercase().contains("MISTO_SUP_INF") || splitType.uppercase().contains("UPPER_LOWER") || (workoutsPerWeek == 3) -> listOf(
-                WorkoutExercise(
-                    exerciseId = "mobilidade_quadril",
-                    name = "Aquecimento: Mobilidade Escapular e Quadril",
-                    muscleGroup = "Geral",
-                    targetMuscleDetail = "Articulações de Ombros e Joelhos",
-                    sets = 2,
-                    repsRange = "12 reps",
-                    tempo = "2-2-2-0",
-                    restSeconds = 45,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 4,
-                    notes = "Prepare articulações do corpo todo para uma sessão híbrida de superior e inferior.",
-                    trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "supino_reto",
-                    name = "Supino Reto Convergente",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Fibras médias do peito",
-                    sets = 4,
-                    repsRange = "8, 8, 10, 10",
-                    tempo = "3-0-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 8,
-                    notes = "Empurre horizontalmente com força constante.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "puxada_polia_alta",
-                    name = "Puxada Aberta na Polia",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Latíssimo do Dorso",
-                    sets = 4,
-                    repsRange = "8, 10, 10, 12",
-                    tempo = "4-0-1-1",
-                    restSeconds = 90,
-                    advancedTechnique = "Isometria no final",
-                    intensityRPE = 8,
-                    notes = "Tracionar os cotovelos verticalmente ativando toda a asa dorsal.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "leg_press_45",
-                    name = "Leg Press 45º Integrado",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Quadríceps e Glúteos",
-                    sets = 4,
-                    repsRange = "12, 12, 15, 15",
-                    tempo = "4-0-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Rest-Pause",
-                    intensityRPE = 9,
-                    notes = "Mantenha o glúteo cravado na base para proteger a região lombar.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_costas",
-                    name = "Alongamento: Descompressão Completa",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Grande Dorso e Posteriores",
-                    sets = 2,
-                    repsRange = "Isometria de 45s",
-                    tempo = "Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 5,
-                    notes = "Segure na barra travando as escápulas e relaxando o quadril.",
-                    trainingPhase = "Alongamento"
-                )
-            )
+        // 1. Determine size (total exercises) based on duration in specialNotes or default
+        val limit = when {
+            specialNotes.contains("30 min") -> 5
+            specialNotes.contains("45 min") -> 6
+            specialNotes.contains("60 min") -> 7
+            specialNotes.contains("90 min") -> 8
+            else -> 7 // Default duration
+        }
 
-            splitType.uppercase().contains("ABC_DENSIDADE") -> listOf(
-                WorkoutExercise(
-                    exerciseId = "manguito_rotador",
-                    name = "Aquecimento: Mobilidade Dinâmica Geral",
-                    muscleGroup = "Ombro/Geral",
-                    targetMuscleDetail = "Cápsula articular e manguito rotador",
-                    sets = 2,
-                    repsRange = "15-20 reps lentas",
-                    tempo = "2-0-2-0",
-                    restSeconds = 45,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 5,
-                    notes = "Ative as articulações dos ombros e quadríceps de forma controlada.",
-                    trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "agachamento_livre",
-                    name = "Agachamento Livre (Foco Densidade)",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Quadríceps e Glúteos",
-                    sets = 4,
-                    repsRange = "8-12 reps (Sobrecarga Progressiva)",
-                    tempo = "3-1-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 9,
-                    notes = "Use cargas pesadas mantendo a forma impecável para sinalizar a preservação da massa muscular.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "supino_reto",
-                    name = "Supino Reto com Barra",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Peitoral Maior",
-                    sets = 4,
-                    repsRange = "8-12 reps",
-                    tempo = "3-1-1-0",
-                    restSeconds = 90,
-                    advancedTechnique = "Supersérie com Crucifixo",
-                    intensityRPE = 9,
-                    notes = "Intensidade mecânica altíssima para estimular síntese de proteínas e queima calórica residual.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "puxada_polia_alta",
-                    name = "Puxada Pulley Frente (Polia Alta)",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Latíssimo do Dorso",
-                    sets = 4,
-                    repsRange = "8-10 + 1 drop-set até a falha",
-                    tempo = "3-0-1-1",
-                    restSeconds = 90,
-                    advancedTechnique = "Drop-set na última série",
-                    intensityRPE = 10,
-                    notes = "No final da última série, reduza a carga em 30% e faça o máximo de repetições possíveis até a exaustão.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_peitoral",
-                    name = "Alongamento e Liberação Escapular",
-                    muscleGroup = "Peito/Dorso",
-                    targetMuscleDetail = "Fáscia Peitorial e Grande Dorso",
-                    sets = 1,
-                    repsRange = "45s estático",
-                    tempo = "Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 5,
-                    notes = "Alongue os grupos musculares recrutados para acelerar a regeneração miofibrilar.",
-                    trainingPhase = "Alongamento"
-                )
-            )
+        // 2. Determine rest seconds based on Focus
+        val rest = when {
+            focus.contains("Hipertrofia", ignoreCase = true) || focus.contains("Recomposição", ignoreCase = true) -> 90
+            focus.contains("Força", ignoreCase = true) -> 150
+            focus.contains("Emagrecimento", ignoreCase = true) || focus.contains("Definição", ignoreCase = true) -> 45
+            else -> 35 // Condicionamento / Resistência
+        }
 
-            splitType.uppercase().contains("ABC_AEROBICO") -> listOf(
+        // 3. Level adjustments (Iniciante, Intermediário, Avançado)
+        val level = experienceLevel.trim()
+        val isBeginner = level.startsWith("Iniciante", ignoreCase = true)
+        val isAdvanced = level.startsWith("Avançado", ignoreCase = true)
+        val defaultSets = if (isBeginner) 3 else 4
+        val defaultRPE = if (isBeginner) 7 else if (isAdvanced) 9 else 8
+        val defaultTechnique = if (isAdvanced) "Rest-Pause" else "Nenhuma"
+
+        // Build suitable list of exercises for the splitType
+        val splitUpper = splitType.uppercase()
+        
+        // Define lists of exercises for phases
+        val warmups: List<WorkoutExercise> = when {
+            splitUpper.contains("AEROBICO") || splitUpper.contains("CARDIO") -> listOf(
                 WorkoutExercise(
                     exerciseId = "esteira_aerobico",
                     name = "Aquecimento: Caminhada Progressiva",
                     muscleGroup = "Cardio",
                     targetMuscleDetail = "Sistema Cardiorrespiratório",
                     sets = 1,
-                    repsRange = "5 minutos",
-                    tempo = "Velocidade 5.5",
-                    restSeconds = 30,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 4,
-                    notes = "Comece de forma moderada para elevar gradualmente a frequência cardíaca.",
-                    trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "hiit_treadmill",
-                    name = "HIIT na Esteira (Catalisador)",
-                    muscleGroup = "Cardio",
-                    targetMuscleDetail = "Capacidade de VO2 Máx e Gasto Calórico",
-                    sets = 10,
-                    repsRange = "30s veloz (RPE 9-10) / 30s lento (RPE 4-5)",
-                    tempo = "Intervalado",
-                    restSeconds = 0,
-                    advancedTechnique = "Intervalado de Alta Intensidade",
-                    intensityRPE = 10,
-                    notes = "Corra em velocidade elevada (ex: 14km/h) por 30s, e descanse andando por 30s. Repita por 10 ciclos para acelerar o metabolismo.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "cardio_moderado",
-                    name = "Cardio Moderado Consistente",
-                    muscleGroup = "Cardio",
-                    targetMuscleDetail = "Bicicleta Estacionária ou Elíptico",
-                    sets = 1,
-                    repsRange = "30-40 minutos contínuos",
-                    tempo = "Consistente",
-                    restSeconds = 60,
-                    advancedTechnique = "Foco em Queima de Gordura (Zona Fat-Burn)",
-                    intensityRPE = 7,
-                    notes = "Mantenha uma frequência cardíaca estável (entre 60% e 70% da FC máx) para maximizar o consumo de gordura.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_articular",
-                    name = "Alongamento de Membros Inferiores",
-                    muscleGroup = "Geral",
-                    targetMuscleDetail = "Isquiotibiais, Quadríceps e Panturrilhas",
-                    sets = 2,
-                    repsRange = "45s estático",
-                    tempo = "Estático",
+                    repsRange = "5 min",
+                    tempo = "Livre",
                     restSeconds = 30,
                     advancedTechnique = "Nenhuma",
                     intensityRPE = 5,
-                    notes = "Acalme a respiração e relaxe os músculos do quadril e pernas.",
-                    trainingPhase = "Alongamento"
-                )
-            )
-
-            splitType.uppercase().contains("PPL_PUSH") || splitType.uppercase().contains("EMPURRAR") || splitType.uppercase().contains("PUSH") -> listOf(
-                WorkoutExercise(
-                    exerciseId = "manguito_rotador",
-                    name = "Aquecimento: Mobilidade de Ombros e Manguito",
-                    muscleGroup = "Ombro",
-                    targetMuscleDetail = "Manguito Rotador e Cápsula Articular",
-                    sets = 2,
-                    repsRange = "15-20 (Ativação Leve)",
-                    tempo = "2-0-2-0",
-                    restSeconds = 45,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 5,
-                    notes = "Movimentos controlados e sem carga excessiva para lubrificação articular e proteção dos ombros contra lesões.",
+                    notes = "Ative dobras motoras e eleve gradualmente a frequência cardíaca.",
                     trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "supino_reto",
-                    name = "Supino Reto com Barra",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Peitoral Maior (Fibras médias e inferiores)",
-                    sets = 4,
-                    repsRange = "6, 8, 8, 10 (Séries de sobrecarga progressiva)",
-                    tempo = "3-1-1-0",
-                    restSeconds = 120,
-                    advancedTechnique = "Rest-Pause na última série (falha + 15s + falha)",
-                    intensityRPE = 9,
-                    notes = "Com o 'leg drive' forte, mantenha os calcanhares cravados e o glúteo colado no banco para estabilidade total.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "elevacao_lateral",
-                    name = "Elevação Lateral com Halteres",
-                    muscleGroup = "Ombro",
-                    targetMuscleDetail = "Fibras laterais do Deltoide e plano escapular",
-                    sets = 4,
-                    repsRange = "10, 12, 12, 15 (Séries tencionais)",
-                    tempo = "3-1-1-1",
-                    restSeconds = 90,
-                    advancedTechnique = "Drop-set triplo na última série (reduzir 30% em duas etapas)",
-                    intensityRPE = 10,
-                    notes = "Arqueie as escápulas levemente para a frente e empurre o peso no plano escapular para evitar tendinite de impacto.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_peitoral",
-                    name = "Alongamento: Descompressão e Expansão Peitoral",
-                    muscleGroup = "Peito",
-                    targetMuscleDetail = "Fáscia do Peitoral Maior e Bíceps",
-                    sets = 2,
-                    repsRange = "Isometria de 30s a 45s",
-                    tempo = "30s Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Fascial Stretch",
-                    intensityRPE = 6,
-                    notes = "Segure em uma coluna estável e projete o quadril/tronco para a frente de modo a alongar a fáscia e restaurar o comprimento do peito.",
-                    trainingPhase = "Alongamento"
                 )
             )
-            splitType.uppercase().contains("PPL_PULL") || splitType.uppercase().contains("PUXAR") || splitType.uppercase().contains("PULL") -> listOf(
-                WorkoutExercise(
-                    exerciseId = "mobilidade_coluna",
-                    name = "Aquecimento: Mobilidade Torácica e Gato-Camelo",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Eretores de espinha e mobilidade vertebral",
-                    sets = 2,
-                    repsRange = "12-15 reps lentas",
-                    tempo = "3-2-3-0",
-                    restSeconds = 45,
-                    advancedTechnique = "Nenhuma",
-                    intensityRPE = 4,
-                    notes = "Arqueie e estenda a coluna de maneira suave para lubrificar as vértebras e preparar a lombar para as cargas.",
-                    trainingPhase = "Aquecimento"
-                ),
-                WorkoutExercise(
-                    exerciseId = "levantamento_terra",
-                    name = "Levantamento Terra (Deadlift)",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Cadeia posterior completa, Lombar, Eretor de Espinha",
-                    sets = 3,
-                    repsRange = "5, 5, 8 (Foco força explosiva)",
-                    tempo = "2-1-1-0",
-                    restSeconds = 180,
-                    advancedTechnique = "Isometria de 2s no topo na última repetição",
-                    intensityRPE = 9,
-                    notes = "Trave o abdômen e prepare o quadril. A força sai no chute das solas dos pés contra a terra firme.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "puxada_polia_alta",
-                    name = "Puxada Aberta na Polia Alta",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Latíssimo do Dorso externo (Largura das Costas)",
-                    sets = 4,
-                    repsRange = "8, 10, 10, 12",
-                    tempo = "4-0-1-1",
-                    restSeconds = 90,
-                    advancedTechnique = "Isometria de contração de 1s embaixo da polia em todas reps",
-                    intensityRPE = 9,
-                    notes = "Mentalize a contração da asa do dorso. Tracione os cotovelos no bolso de trás da calça.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_costas",
-                    name = "Alongamento: Descompressão da Coluna e Grande Dorso",
-                    muscleGroup = "Dorso",
-                    targetMuscleDetail = "Latíssimo do Dorso e fáscia toracolombar",
-                    sets = 2,
-                    repsRange = "Isometria de 40s",
-                    tempo = "40s Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Descompressão Pendular",
-                    intensityRPE = 5,
-                    notes = "Segure em uma barra fixa alta, relaxe completamente as escápulas e o quadril, deixando a gravidade descomprimir a lombar e o dorso.",
-                    trainingPhase = "Alongamento"
-                )
-            )
-            else -> listOf( // Legs or Default Elite ABC
+            splitUpper.contains("LEGS") || splitUpper.contains("PERNA") || splitUpper.contains("GLÚTEO") -> listOf(
                 WorkoutExercise(
                     exerciseId = "mobilidade_quadril",
-                    name = "Aquecimento: Mobilidade de Quadril e Tornozelo",
+                    name = "Aquecimento: Mobilidade de Quadril",
                     muscleGroup = "Pernas",
-                    targetMuscleDetail = "Articulações Coxofemoral e Tibiotársica",
+                    targetMuscleDetail = "Articulações coxofemoral e tornozelos",
                     sets = 2,
                     repsRange = "12 reps por lado",
                     tempo = "2-2-2-0",
                     restSeconds = 45,
                     advancedTechnique = "Nenhuma",
                     intensityRPE = 4,
-                    notes = "Faça agachamentos profundos sem peso segurando no suporte para soltar as articulações coxofemoral e tornozelo.",
+                    notes = "Solte o quadril realizando rotações dinâmicas para proteger a lombar.",
                     trainingPhase = "Aquecimento"
-                ),
+                )
+            )
+            splitUpper.contains("PULL") || splitUpper.contains("PUXAR") || splitUpper.contains("DORSO") || splitUpper.contains("COSTAS") -> listOf(
                 WorkoutExercise(
-                    exerciseId = "agachamento_livre",
-                    name = "Agachamento Livre com Barra",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Quadríceps, Vasto Lateral, Glúteo Maior",
-                    sets = 4,
-                    repsRange = "6, 8, 8, 10 (Pirâmide crescente de carga)",
-                    tempo = "4-1-1-0",
-                    restSeconds = 150,
-                    advancedTechnique = "Nenhuma (Foco absoluto em sobrecarga progressiva)",
-                    intensityRPE = 9,
-                    notes = "Manobra de bracing impecável antes de iniciar a descida. Desça esticando bem as articulações.",
-                    trainingPhase = "Principal"
-                ),
-                WorkoutExercise(
-                    exerciseId = "leg_press_45",
-                    name = "Leg Press 45 Graus",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Quadríceps e Glúteos (Volume tensional)",
-                    sets = 4,
-                    repsRange = "12, 12, 15, 20 (Alto volume de lactato)",
-                    tempo = "4-0-1-0",
-                    restSeconds = 120,
-                    advancedTechnique = "Rest-Pause (20 reps + 15s descanso + 6 reps)",
-                    intensityRPE = 10,
-                    notes = "Mantenha o quadril pressionado fortemente sobre o assentamento amortecido para não retroverter a bacia.",
-                    trainingPhase = "Acessório"
-                ),
-                WorkoutExercise(
-                    exerciseId = "alongamento_pernas",
-                    name = "Alongamento: Descompressão Cadeia Posterior e Glúteo",
-                    muscleGroup = "Pernas",
-                    targetMuscleDetail = "Hamstrings (Isquiotibiais) e Glúteos",
+                    exerciseId = "mobilidade_coluna",
+                    name = "Aquecimento: Gato-Camelo",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Eretores de espinha e lombar",
                     sets = 2,
-                    repsRange = "Isometria de 45s",
-                    tempo = "45s Estático",
-                    restSeconds = 30,
-                    advancedTechnique = "Estático Passivo",
+                    repsRange = "15 reps conscientes",
+                    tempo = "3-2-3-0",
+                    restSeconds = 45,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 4,
+                    notes = "Trabalhe a flexão e extensão vertebral sem pressa para hidratar os discos.",
+                    trainingPhase = "Aquecimento"
+                )
+            )
+            else -> listOf( // Push/Peito/Ombro/Braços/All others
+                WorkoutExercise(
+                    exerciseId = "manguito_rotador",
+                    name = "Aquecimento: Mobilidade de Ombros & Manguito",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Manguito rotador e cápsulas articulares",
+                    sets = 2,
+                    repsRange = "15-20 ativações",
+                    tempo = "2-0-2-0",
+                    restSeconds = 45,
+                    advancedTechnique = "Nenhuma",
                     intensityRPE = 5,
-                    notes = "Incline as costas para frente em direção aos pés de forma controlada para relaxar os isquiotibiais sobrecarregados e aliviar os tendões.",
-                    trainingPhase = "Alongamento"
+                    notes = "Faça movimentos rotacionais finos preventivos de impacto no ombro.",
+                    trainingPhase = "Aquecimento"
                 )
             )
         }
 
-        return GeneratedWorkout(title, splitType, focus, exercises)
+        val compounds: List<WorkoutExercise> = when {
+            splitUpper.contains("AEROBICO") || splitUpper.contains("CARDIO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "hiit_treadmill",
+                    name = "Corrida HIIT Catalisadora na Esteira",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Capacidade de VO2 Máx e déficit calórico",
+                    sets = defaultSets + 2,
+                    repsRange = "30s veloz / 30s caminhando",
+                    tempo = "Intervalado",
+                    restSeconds = 0,
+                    advancedTechnique = "HIIT",
+                    intensityRPE = defaultRPE + 1,
+                    notes = "Dê o máximo de si nos tiros de 30 segundos mantendo postura ereta.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "cardio_moderado",
+                    name = "Elíptico ou Bicicleta de Alto Gasto",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Zona de Fat-burn (Frequência média)",
+                    sets = 1,
+                    repsRange = "20-30 min contínuos",
+                    tempo = "Estável",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha ritmo constante na faixa aeróbica de queima lipídica.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "abdominal_crunch",
+                    name = "Abdominal infra pendurado",
+                    muscleGroup = "Abdômen",
+                    targetMuscleDetail = "Reto Abdominal Geral",
+                    sets = defaultSets,
+                    repsRange = "15-20 reps",
+                    tempo = "2-1-2-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Flexione o quadril jogando os joelhos em direção ao peito com controle.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "abdominal_prancha",
+                    name = "Prancha Isométrica Ativa",
+                    muscleGroup = "Abdômen",
+                    targetMuscleDetail = "Core e Transverso Abdominal",
+                    sets = 3,
+                    repsRange = "45s isometria",
+                    tempo = "Estático",
+                    restSeconds = rest,
+                    advancedTechnique = "Isometria",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha o glúteo contraído e abdômen cravado sem despencar o quadril.",
+                    trainingPhase = "Principal"
+                )
+            )
+            splitUpper.contains("LEGS") || splitUpper.contains("PERNA") || splitUpper.contains("GLÚTEO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "agachamento_livre",
+                    name = if (isBeginner) "Agachamento no Smith (Guiado)" else "Agachamento Livre com Barra",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps Geral e Glúteos",
+                    sets = defaultSets,
+                    repsRange = "8-12 reps controladas",
+                    tempo = "4-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Aperte o abdômen (bracing) e desça mandando o quadril para trás.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "leg_press_45",
+                    name = "Leg Press 45º Linear",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps, Vasto Lateral, Glúteos",
+                    sets = defaultSets,
+                    repsRange = "10-15 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = defaultTechnique,
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha o quadril pressionado fortemente sobre o assentamento.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "levantamento_terra_stiff",
+                    name = "Stiff com Halteres",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Posteriores de Coxa e Glúteo",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "4-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Alongue os posteriores mantendo a coluna reta e os joelhos semi-flexionados.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "afundo_halteres",
+                    name = "Passada Caminhando com Halteres",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps e Glúteo Médio",
+                    sets = defaultSets,
+                    repsRange = "10 passos por perna",
+                    tempo = "2-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha o joelho alinhado com a ponta do pé na descida.",
+                    trainingPhase = "Principal"
+                )
+            )
+            splitUpper.contains("PULL") || splitUpper.contains("PUXAR") || splitUpper.contains("DORSO") || splitUpper.contains("COSTAS") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "puxada_polia_alta",
+                    name = "Puxada Pulley Aberta Frente",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Latíssimo do Dorso externo",
+                    sets = defaultSets,
+                    repsRange = "8-12 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Direcione a barra no peito superior mantendo o tronco levemente inclinado.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "levantamento_terra",
+                    name = if (isBeginner) "Dorsal Pulley Triangular" else "Levantamento Terra Clássico",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Cadeia posterior completa e eretores",
+                    sets = defaultSets,
+                    repsRange = "6-10 reps",
+                    tempo = "2-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Saia empurrando o chão com as solas dos pés.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "remada_baixa_triangulo",
+                    name = "Remada Baixa Polia com Triângulo",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Porção média do Dorso (Trapézio e Romboides)",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = rest,
+                    advancedTechnique = defaultTechnique,
+                    intensityRPE = defaultRPE,
+                    notes = "Esmague as escápulas no final e alongue completamente na ida.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "pull_down_corda",
+                    name = "Pulldown com Corda no Cabo",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Latíssimo do Dorso Inferior",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha o braço semi-estendido e puxe levando as mãos ao quadril.",
+                    trainingPhase = "Principal"
+                )
+            )
+            splitUpper.contains("PUSH") || splitUpper.contains("EMPURRAR") || splitUpper.contains("PEITO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "supino_reto",
+                    name = if (isBeginner) "Supino Vertical Máquina" else "Supino Reto com Barra",
+                    muscleGroup = "Peito",
+                    targetMuscleDetail = "Peitoral Maior Central",
+                    sets = defaultSets,
+                    repsRange = "8-12 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Escápulas em adução no banco para proteger os ombros.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "supino_inclinado_halteres",
+                    name = "Supino Inclinado com Halteres",
+                    muscleGroup = "Peito",
+                    targetMuscleDetail = "Fibras Claviculares Superiores",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = defaultTechnique,
+                    intensityRPE = defaultRPE,
+                    notes = "Incline a 30 graus para concentrar no peito superior.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "desenvolvimento_halteres",
+                    name = "Desenvolvimento de Ombros com Halteres",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Deltoide Anterior",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Suba verticalmente de forma controlada.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "crucifixo_maquina",
+                    name = "Voador Peitoral (Pec Deck)",
+                    muscleGroup = "Peito",
+                    targetMuscleDetail = "Fibras Internas do Peito",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha os cotovelos levemente flexionados e esmague na contração.",
+                    trainingPhase = "Principal"
+                )
+            )
+            splitUpper.contains("PONTO_FRACO") || splitUpper.contains("BRAÇO") || splitUpper.contains("OMBRO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "rosca_polia",
+                    name = "Rosca Direta no Cabo Polia",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Bíceps Braquial",
+                    sets = defaultSets,
+                    repsRange = "8-12 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = rest,
+                    advancedTechnique = defaultTechnique,
+                    intensityRPE = defaultRPE,
+                    notes = "Esmague o bíceps no topo por 1 segundo.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "triceps_testa",
+                    name = "Tríceps Testa com Barra W",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Tríceps Cabeça Longa",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha os cotovelos paralelos apontados para cima.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "desenvolvimento_halteres",
+                    name = "Desenvolvimento de Ombros Sentado",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Deltoide Anterior",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Suba com força controlada.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "rosca_martelo",
+                    name = "Rosca Martelo com Halteres",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Braquiorradial e Braquial",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Pegada neutra constante controlando a descida.",
+                    trainingPhase = "Principal"
+                )
+            )
+            else -> listOf( // Default / Misto / Generalized (combines peito, costas, pernas)
+                WorkoutExercise(
+                    exerciseId = "agachamento_livre",
+                    name = if (isBeginner) "Agachamento na Barra Guiada" else "Agachamento Livre com Barra",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps e Glúteos",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "4-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Desça com controle estabilizando o tronco.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "supino_reto",
+                    name = if (isBeginner) "Supino Vertical Máquina" else "Supino Reto com Barra",
+                    muscleGroup = "Peito",
+                    targetMuscleDetail = "Peitoral Maior Central",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = defaultTechnique,
+                    intensityRPE = defaultRPE,
+                    notes = "Ative adutores escapulares no banco constante.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "puxada_polia_alta",
+                    name = "Puxada Pulley Frente",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Latíssimo do Dorso",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Direcione os cotovelos para baixo esmagando as costas.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "leg_press_45",
+                    name = "Leg Press 45º Linear",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps e Panturrilhas",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = rest,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha calcanhares cravados na plataforma.",
+                    trainingPhase = "Principal"
+                )
+            )
+        }
+
+        val accessories: List<WorkoutExercise> = when {
+            splitUpper.contains("AEROBICO") || splitUpper.contains("CARDIO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "cardio_escada",
+                    name = "Subida de Escadaria Cardio",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Resistência cardiovascular",
+                    sets = 1,
+                    repsRange = "15 min",
+                    tempo = "Livre",
+                    restSeconds = 30,
+                    advancedTechnique = "Aumento metabólico",
+                    intensityRPE = defaultRPE,
+                    notes = "Simule subida constante mantendo calcanhar apoiado.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "cardio_polichinelos",
+                    name = "Polichinelos ou Saltos Ativos",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Padrão pliométrico aeróbico",
+                    sets = 3,
+                    repsRange = "45 segundos",
+                    tempo = "Rápido",
+                    restSeconds = 30,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE - 1,
+                    notes = "Mantenha o amortecimento dos joelhos em cada aterrissagem.",
+                    trainingPhase = "Acessório"
+                )
+            )
+            splitUpper.contains("LEGS") || splitUpper.contains("PERNA") || splitUpper.contains("GLÚTEO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "cadeira_extensora",
+                    name = "Cadeira Extensora de Quadríceps",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Reto femoral e vastos anteriorizados",
+                    sets = defaultSets,
+                    repsRange = "12-15 reps + drop-set",
+                    tempo = "3-1-1-1",
+                    restSeconds = rest - 20,
+                    advancedTechnique = if (isAdvanced) "Drop-set na última" else "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Ponto de pico no topo de contração por 1 segundo.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "mesa_flexora",
+                    name = "Mesa Flexora Horizontal",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Bíceps femoral e isquiotibiais",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = rest - 20,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Faça contração completa sem levantar o quadril da mesa.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "panturrilha_pe",
+                    name = "Gêmeos em Pé (Panturrilhas)",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Gastrocnêmio",
+                    sets = 4,
+                    repsRange = "15-20 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = 45,
+                    advancedTechnique = "Alongamento estático no final",
+                    intensityRPE = defaultRPE,
+                    notes = "Alongamento máximo embaixo e contração máxima em cima.",
+                    trainingPhase = "Acessório"
+                )
+            )
+            splitUpper.contains("PULL") || splitUpper.contains("PUXAR") || splitUpper.contains("DORSO") || splitUpper.contains("COSTAS") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "rosca_polia",
+                    name = "Rosca Direta Cabo Polia",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Bíceps Braquial cabeça curta",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = if (isAdvanced) "Drop-set" else "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Evite roubar projetando os cotovelos para frente.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "rosca_martelo_alternada",
+                    name = "Rosca Martelo Alternada",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Braquiorradial e antebraço",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Aperte forte os halteres ativando o antebraço.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "elevacao_escapular",
+                    name = "Encolhimento de Ombros com Halteres",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Trapézio Superior",
+                    sets = 3,
+                    repsRange = "15 reps",
+                    tempo = "2-0-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Suba os ombros em direção às orelhas sem girá-los.",
+                    trainingPhase = "Acessório"
+                )
+            )
+            splitUpper.contains("PUSH") || splitUpper.contains("EMPURRAR") || splitUpper.contains("PEITO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "elevacao_lateral",
+                    name = "Elevação Lateral com Halteres",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Deltoide Lateral fibra média",
+                    sets = defaultSets,
+                    repsRange = "12-15 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = if (isAdvanced) "Drop-set triplo" else "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Projete no plano escapular de forma constante.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "triceps_testa",
+                    name = "Tríceps Testa no Cabo",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Tríceps medial e lateral",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Mantenha os cotovelos estáticos.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "triceps_pulley_barra",
+                    name = "Tríceps Pulley com Barra Reta",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Tríceps Cabeça Lateral",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Esmague embaixo isolando perfeitamente o tríceps.",
+                    trainingPhase = "Acessório"
+                )
+            )
+            splitUpper.contains("PONTO_FRACO") || splitUpper.contains("BRAÇO") || splitUpper.contains("OMBRO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "triceps_pulley_barra",
+                    name = "Tríceps Corda Pulley",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Tríceps Cabeça Lateral",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = if (isAdvanced) "Drop-set" else "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Abra a corda no final da descida para contrair ao máximo.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "rosca_concentrada",
+                    name = "Rosca Concentrada Sentado",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Bíceps Pico e Isolamento",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Apoie o tríceps na coxa e suba isolando o braço.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "elevacao_lateral",
+                    name = "Elevação Lateral com Halteres",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Deltoide Lateral",
+                    sets = defaultSets,
+                    repsRange = "15 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Projete levemente os braços para frente na elevação.",
+                    trainingPhase = "Acessório"
+                )
+            )
+            else -> listOf( // Default / Misto
+                WorkoutExercise(
+                    exerciseId = "elevacao_lateral",
+                    name = "Elevação Lateral com Halteres",
+                    muscleGroup = "Ombro",
+                    targetMuscleDetail = "Deltoide Lateral",
+                    sets = defaultSets,
+                    repsRange = "12-15 reps",
+                    tempo = "3-1-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = if (isAdvanced) "Drop-set" else "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Execute no plano das escápulas.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "rosca_polia",
+                    name = "Rosca Direta Polia Alta",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Bíceps Geral",
+                    sets = defaultSets,
+                    repsRange = "10 reps",
+                    tempo = "3-0-1-1",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Pegada firme controlando a volta excêntrica lenta.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "triceps_testa",
+                    name = "Tríceps Testa Pulley",
+                    muscleGroup = "Braços",
+                    targetMuscleDetail = "Tríceps Cabeça Longa",
+                    sets = defaultSets,
+                    repsRange = "12 reps",
+                    tempo = "3-0-1-0",
+                    restSeconds = 60,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = defaultRPE,
+                    notes = "Estenda os braços completamente mantendo os cotovelos travados.",
+                    trainingPhase = "Acessório"
+                )
+            )
+        }
+
+        val stretchings: List<WorkoutExercise> = listOf(
+            WorkoutExercise(
+                exerciseId = "alongamento_articular",
+                name = "Alongamento Soltura Descompressiva",
+                muscleGroup = "Geral",
+                targetMuscleDetail = "Fáscia muscular e articulações recrutadas",
+                sets = 1,
+                repsRange = "45s estático",
+                tempo = "Estático",
+                restSeconds = 30,
+                advancedTechnique = "Fascial Stretch",
+                intensityRPE = 5,
+                notes = "Respire de maneira calma e profunda, gerando liberação ativa na grande fáscia e restaurando comprimento.",
+                trainingPhase = "Alongamento"
+            )
+        )
+
+        // 4. Assemble exact requested size based on 'limit' (5, 6, 7, 8)
+        val resultList = mutableListOf<WorkoutExercise>()
+        
+        // 1 warmup (Aquecimento)
+        resultList.add(warmups.first())
+
+        // Calculate how many compound (Principal) & accessories (Acessório) to grab
+        val principalCount = when (limit) {
+            5 -> 2
+            6 -> 3
+            7 -> 3
+            8 -> 4
+            else -> 3
+        }
+        val acessorioCount = when (limit) {
+            5 -> 1
+            6 -> 1
+            7 -> 2
+            8 -> 2
+            else -> 2
+        }
+
+        // Compounds
+        for (i in 0 until principalCount) {
+            val c = compounds.getOrNull(i) ?: compounds.first()
+            resultList.add(c)
+        }
+
+        // Accessories
+        for (i in 0 until acessorioCount) {
+            val a = accessories.getOrNull(i) ?: accessories.first()
+            resultList.add(a)
+        }
+
+        // 1 stretching (Alongamento)
+        resultList.add(stretchings.first())
+
+        // Safety slice/ensure exactly equals limit
+        val finalExercises = resultList.take(limit)
+
+        return GeneratedWorkout(title, splitType, focus, finalExercises)
     }
 }
 

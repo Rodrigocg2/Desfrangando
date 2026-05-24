@@ -13,7 +13,11 @@ data class SavedWorkout(
     val splitType: String, // PPL, Arnold, ABCDE, Custom
     val focus: String, // Hipertrofia, Força, Densidade, Isometria
     val dateCreated: Long = System.currentTimeMillis(),
-    val exercisesJson: String // Serialized List<WorkoutExercise>
+    val exercisesJson: String, // Serialized List<WorkoutExercise>
+    val isFavorite: Boolean = false,
+    val category: String = "",
+    val emoji: String = "💪",
+    val colorHex: String = "#8B5CF6"
 ) {
     fun getExercises(): List<WorkoutExercise> {
         return try {
