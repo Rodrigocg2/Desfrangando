@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.GymAppRoot
 import com.example.ui.theme.MyApplicationTheme
@@ -16,9 +18,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val viewModel: WorkoutViewModel = viewModel()
+            val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+            MyApplicationTheme(darkTheme = isDarkTheme) {
                 // Initialize modern State ViewModel
-                val viewModel: WorkoutViewModel = viewModel()
                 GymAppRoot(viewModel = viewModel)
             }
         }

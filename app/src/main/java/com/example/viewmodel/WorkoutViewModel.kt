@@ -26,6 +26,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val prefs = application.getSharedPreferences("apexforce_user_prefs", Context.MODE_PRIVATE)
 
+    private val _isDarkTheme = MutableStateFlow(prefs.getBoolean("is_dark_theme", true))
+    val isDarkTheme = _isDarkTheme.asStateFlow()
+
+    fun setDarkTheme(enabled: Boolean) {
+        _isDarkTheme.value = enabled
+        prefs.edit().putBoolean("is_dark_theme", enabled).apply()
+    }
+
     private val _userWeight = MutableStateFlow(prefs.getFloat("user_weight", 80.0f))
     val userWeight = _userWeight.asStateFlow()
 
@@ -159,6 +167,107 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         Log.d(TAG, "WorkoutViewModel initialized.")
     }
 
+    // --- Premium Form Questionnaire States ---
+    private val _userName = MutableStateFlow(prefs.getString("user_name", "Rodrigo C. G.") ?: "Rodrigo C. G.")
+    val userName = _userName.asStateFlow()
+
+    private val _userAge = MutableStateFlow(prefs.getString("user_age", "25") ?: "25")
+    val userAge = _userAge.asStateFlow()
+
+    private val _userGender = MutableStateFlow(prefs.getString("user_gender", "Masculino") ?: "Masculino")
+    val userGender = _userGender.asStateFlow()
+
+    private val _selectedObjective = MutableStateFlow(prefs.getString("user_objective", "Hipertrofia") ?: "Hipertrofia")
+    val selectedObjective = _selectedObjective.asStateFlow()
+
+    private val _userFitnessLevel = MutableStateFlow(prefs.getString("user_fitness_level", "Avançado") ?: "Avançado")
+    val userFitnessLevel = _userFitnessLevel.asStateFlow()
+
+    private val _workoutsPerWeekCount = MutableStateFlow(prefs.getInt("workouts_per_week_count", 5))
+    val workoutsPerWeekCount = _workoutsPerWeekCount.asStateFlow()
+
+    private val _chosenSplitPattern = MutableStateFlow(prefs.getString("chosen_split_pattern", "Push Pull Legs") ?: "Push Pull Legs")
+    val chosenSplitPattern = _chosenSplitPattern.asStateFlow()
+
+    private val _workoutDurationChoice = MutableStateFlow(prefs.getString("workout_duration_choice", "60 min") ?: "60 min")
+    val workoutDurationChoice = _workoutDurationChoice.asStateFlow()
+
+    private val _workoutLocation = MutableStateFlow(prefs.getString("workout_location", "Academia completa") ?: "Academia completa")
+    val workoutLocation = _workoutLocation.asStateFlow()
+
+    private val _optionalMuscleFocus = MutableStateFlow(prefs.getString("optional_muscle_focus", "") ?: "")
+    val optionalMuscleFocus = _optionalMuscleFocus.asStateFlow()
+
+    fun updateName(name: String) {
+        _userName.value = name
+        prefs.edit().putString("user_name", name).apply()
+    }
+
+    fun updateAge(age: String) {
+        _userAge.value = age
+        prefs.edit().putString("user_age", age).apply()
+    }
+
+    fun updateGender(gender: String) {
+        _userGender.value = gender
+        prefs.edit().putString("user_gender", gender).apply()
+    }
+
+    fun updateObjective(objective: String) {
+        _selectedObjective.value = objective
+        prefs.edit().putString("user_objective", objective).apply()
+        selectedFocus = objective
+    }
+
+    fun updateFitnessLevel(level: String) {
+        _userFitnessLevel.value = level
+        prefs.edit().putString("user_fitness_level", level).apply()
+        experienceLevel = level
+    }
+
+    fun updateWorkoutsPerWeekCount(count: Int) {
+        _workoutsPerWeekCount.value = count
+        prefs.edit().putInt("workouts_per_week_count", count).apply()
+        updateWorkoutsPerWeek(count)
+    }
+
+    fun updateChosenSplitPattern(split: String) {
+        _chosenSplitPattern.value = split
+        prefs.edit().putString("chosen_split_pattern", split).apply()
+        selectedSplit = when (split) {
+            "ABC" -> "ABC_DENSIDADE"
+            "ABCD" -> "PPL_PUSH"
+            "ABCDE" -> "PPL_PULL"
+            "Push Pull Legs" -> "PPL_PUSH"
+            "Upper Lower" -> "UPPER_LOWER"
+            "Full Body" -> "MISTO_SUP_INF"
+            "Arnold Split" -> "ARNOLD_SPLIT"
+            "Bro Split" -> "ABC_DENSIDADE"
+            "Misto" -> "MISTO_PERNA_BRACO_PEITO"
+            "Foco em Braços" -> "PONTO_FRACO"
+            "Foco em Peito" -> "PPL_PUSH"
+            "Foco em Pernas" -> "PPL_LEGS"
+            "Foco em Glúteo" -> "PPL_LEGS"
+            "Foco em Ombros" -> "PONTO_FRACO"
+            else -> "ABC_DENSIDADE"
+        }
+    }
+
+    fun updateWorkoutDurationChoice(dur: String) {
+        _workoutDurationChoice.value = dur
+        prefs.edit().putString("workout_duration_choice", dur).apply()
+    }
+
+    fun updateWorkoutLocation(loc: String) {
+        _workoutLocation.value = loc
+        prefs.edit().putString("workout_location", loc).apply()
+    }
+
+    fun updateOptionalMuscleFocus(focusCSV: String) {
+        _optionalMuscleFocus.value = focusCSV
+        prefs.edit().putString("optional_muscle_focus", focusCSV).apply()
+    }
+
     // --- Core Database and Generation ---
 
     fun generateNewWorkout() {
@@ -167,13 +276,25 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             _generationError.value = null
             _lastGeneratedWorkout.value = null
 
+            val richNotes = """
+                Nome do Usuário: ${_userName.value}
+                Idade: ${_userAge.value}
+                Sexo: ${_userGender.value}
+                Altura: ${_userHeight.value} cm
+                Peso: ${_userWeight.value} kg
+                Duração planejada: ${_workoutDurationChoice.value}
+                Local de treino: ${_workoutLocation.value}
+                Foco muscular opcional: ${_optionalMuscleFocus.value}
+                Observações de limitação: $specialNotes
+            """.trimIndent()
+
             val result = GeminiClient.generateWorkout(
                 splitType = selectedSplit,
-                focus = selectedFocus,
-                specialNotes = specialNotes,
-                experienceLevel = experienceLevel,
+                focus = _selectedObjective.value,
+                specialNotes = richNotes,
+                experienceLevel = _userFitnessLevel.value,
                 workoutsPerDay = _workoutsPerDay.value,
-                workoutsPerWeek = _workoutsPerWeek.value
+                workoutsPerWeek = _workoutsPerWeekCount.value
             )
 
             _isGenerating.value = false

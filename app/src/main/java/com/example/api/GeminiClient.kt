@@ -62,6 +62,8 @@ object GeminiClient {
             - Nível de Experiência: $experienceLevel (Elite, Avançado, com tantos anos de experiência informados)
 
             DIRETRIZ DE DIVISÃO MUSCULAR:
+            - Se a Divisão for ABC_DENSIDADE (Musculação: Foco na Densidade): Crie uma rotina com cargas pesadas, mantendo a execução correta para estimular a retenção/aumento de massa muscular enquanto reduz gordura. Use variações de 3 a 4 séries de 8 a 12 repetições. Adicione técnicas de intensidade como Drop-sets ou Supersets ao final para otimizar o gasto calórico.
+            - Se a Divisão for ABC_AEROBICO (Aeróbico Catalisador): Crie uma rotina combinando exercícios cardiovasculares HIIT (treino intervalado de alta intensidade) e Cardio Moderado (caminhada rápida, transport, bicicleta de 30 a 40 minutos) focado em criar déficit calórico para maximizar queima de gordura e acelerar o metabolismo.
             - Se o usuário selecionar ou for treinar 3 vezes na semana (workoutsPerWeek = 3), crie um maravilhoso misto de membros Superiores e Inferiores (Superior/Inferior), ou uma estratégia de um dia para cada membro/grupo muscular em rotação (Push/Pull/Legs).
             - Se Divisão for MISTO_PERNA_BRACO_PEITO, misture de forma equilibrada exercícios focados em Pernas (quadriceps/posterior), Braços (biceps/triceps) e Peito (peitoral).
             - Se Divisão for MISTO_SUP_INF, misture exercícios de Membros Superiores (Dorso/Peito/Ombro) e Inferiores (Pernas).
@@ -383,6 +385,138 @@ object GeminiClient {
                     advancedTechnique = "Nenhuma",
                     intensityRPE = 5,
                     notes = "Segure na barra travando as escápulas e relaxando o quadril.",
+                    trainingPhase = "Alongamento"
+                )
+            )
+
+            splitType.uppercase().contains("ABC_DENSIDADE") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "manguito_rotador",
+                    name = "Aquecimento: Mobilidade Dinâmica Geral",
+                    muscleGroup = "Ombro/Geral",
+                    targetMuscleDetail = "Cápsula articular e manguito rotador",
+                    sets = 2,
+                    repsRange = "15-20 reps lentas",
+                    tempo = "2-0-2-0",
+                    restSeconds = 45,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 5,
+                    notes = "Ative as articulações dos ombros e quadríceps de forma controlada.",
+                    trainingPhase = "Aquecimento"
+                ),
+                WorkoutExercise(
+                    exerciseId = "agachamento_livre",
+                    name = "Agachamento Livre (Foco Densidade)",
+                    muscleGroup = "Pernas",
+                    targetMuscleDetail = "Quadríceps e Glúteos",
+                    sets = 4,
+                    repsRange = "8-12 reps (Sobrecarga Progressiva)",
+                    tempo = "3-1-1-0",
+                    restSeconds = 90,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 9,
+                    notes = "Use cargas pesadas mantendo a forma impecável para sinalizar a preservação da massa muscular.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "supino_reto",
+                    name = "Supino Reto com Barra",
+                    muscleGroup = "Peito",
+                    targetMuscleDetail = "Peitoral Maior",
+                    sets = 4,
+                    repsRange = "8-12 reps",
+                    tempo = "3-1-1-0",
+                    restSeconds = 90,
+                    advancedTechnique = "Supersérie com Crucifixo",
+                    intensityRPE = 9,
+                    notes = "Intensidade mecânica altíssima para estimular síntese de proteínas e queima calórica residual.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "puxada_polia_alta",
+                    name = "Puxada Pulley Frente (Polia Alta)",
+                    muscleGroup = "Dorso",
+                    targetMuscleDetail = "Latíssimo do Dorso",
+                    sets = 4,
+                    repsRange = "8-10 + 1 drop-set até a falha",
+                    tempo = "3-0-1-1",
+                    restSeconds = 90,
+                    advancedTechnique = "Drop-set na última série",
+                    intensityRPE = 10,
+                    notes = "No final da última série, reduza a carga em 30% e faça o máximo de repetições possíveis até a exaustão.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "alongamento_peitoral",
+                    name = "Alongamento e Liberação Escapular",
+                    muscleGroup = "Peito/Dorso",
+                    targetMuscleDetail = "Fáscia Peitorial e Grande Dorso",
+                    sets = 1,
+                    repsRange = "45s estático",
+                    tempo = "Estático",
+                    restSeconds = 30,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 5,
+                    notes = "Alongue os grupos musculares recrutados para acelerar a regeneração miofibrilar.",
+                    trainingPhase = "Alongamento"
+                )
+            )
+
+            splitType.uppercase().contains("ABC_AEROBICO") -> listOf(
+                WorkoutExercise(
+                    exerciseId = "esteira_aerobico",
+                    name = "Aquecimento: Caminhada Progressiva",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Sistema Cardiorrespiratório",
+                    sets = 1,
+                    repsRange = "5 minutos",
+                    tempo = "Velocidade 5.5",
+                    restSeconds = 30,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 4,
+                    notes = "Comece de forma moderada para elevar gradualmente a frequência cardíaca.",
+                    trainingPhase = "Aquecimento"
+                ),
+                WorkoutExercise(
+                    exerciseId = "hiit_treadmill",
+                    name = "HIIT na Esteira (Catalisador)",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Capacidade de VO2 Máx e Gasto Calórico",
+                    sets = 10,
+                    repsRange = "30s veloz (RPE 9-10) / 30s lento (RPE 4-5)",
+                    tempo = "Intervalado",
+                    restSeconds = 0,
+                    advancedTechnique = "Intervalado de Alta Intensidade",
+                    intensityRPE = 10,
+                    notes = "Corra em velocidade elevada (ex: 14km/h) por 30s, e descanse andando por 30s. Repita por 10 ciclos para acelerar o metabolismo.",
+                    trainingPhase = "Principal"
+                ),
+                WorkoutExercise(
+                    exerciseId = "cardio_moderado",
+                    name = "Cardio Moderado Consistente",
+                    muscleGroup = "Cardio",
+                    targetMuscleDetail = "Bicicleta Estacionária ou Elíptico",
+                    sets = 1,
+                    repsRange = "30-40 minutos contínuos",
+                    tempo = "Consistente",
+                    restSeconds = 60,
+                    advancedTechnique = "Foco em Queima de Gordura (Zona Fat-Burn)",
+                    intensityRPE = 7,
+                    notes = "Mantenha uma frequência cardíaca estável (entre 60% e 70% da FC máx) para maximizar o consumo de gordura.",
+                    trainingPhase = "Acessório"
+                ),
+                WorkoutExercise(
+                    exerciseId = "alongamento_articular",
+                    name = "Alongamento de Membros Inferiores",
+                    muscleGroup = "Geral",
+                    targetMuscleDetail = "Isquiotibiais, Quadríceps e Panturrilhas",
+                    sets = 2,
+                    repsRange = "45s estático",
+                    tempo = "Estático",
+                    restSeconds = 30,
+                    advancedTechnique = "Nenhuma",
+                    intensityRPE = 5,
+                    notes = "Acalme a respiração e relaxe os músculos do quadril e pernas.",
                     trainingPhase = "Alongamento"
                 )
             )
