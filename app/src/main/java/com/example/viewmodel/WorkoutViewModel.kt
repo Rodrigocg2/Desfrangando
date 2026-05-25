@@ -133,10 +133,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _currentStreak = MutableStateFlow(0)
     val currentStreak = _currentStreak.asStateFlow()
 
-    init {
-        loadTabs()
-        switchActiveTab(_activeTab.value)
-    }
+    // Init block is consolidated and located below all constructor property declarations
 
     private fun loadTabs() {
         val json = prefs.getString("custom_tabs_json", "[]") ?: "[]"
@@ -231,6 +228,37 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _currentStreak.value = prefs.getInt("current_streak_$tabName", 0)
     }
 
+    // --- Uncaught Crash Log Diagnostic State ---
+    private val _crashLogFile = java.io.File(application.cacheDir, "crash_log.txt")
+    private val _activeCrashLog = MutableStateFlow<String?>(null)
+    val activeCrashLog = _activeCrashLog.asStateFlow()
+
+    fun checkAndLoadCrashLog() {
+        if (_crashLogFile.exists()) {
+            try {
+                val contents = _crashLogFile.readText()
+                if (contents.isNotBlank()) {
+                    _activeCrashLog.value = contents
+                    Log.d(TAG, "Uncaught crash log found and loaded.")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read crash log", e)
+            }
+        }
+    }
+
+    fun clearCrashLog() {
+        _activeCrashLog.value = null
+        if (_crashLogFile.exists()) {
+            try {
+                _crashLogFile.delete()
+                Log.d(TAG, "Uncaught crash log file deleted successfully.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete crash log file", e)
+            }
+        }
+    }
+
     val wearableSyncManager = com.example.api.WearableSyncManager(workoutDao)
 
     // Observable states from DB
@@ -303,10 +331,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _videoAngle = MutableStateFlow("COMBATE") // COMBATE (Anatomy map), FRONTAL, LATERAL
     val videoAngle = _videoAngle.asStateFlow()
 
-    init {
-        // Log setup
-        Log.d(TAG, "WorkoutViewModel initialized.")
-    }
+    // Log setup is consolidated into the unified init block below
 
     // --- Premium Form Questionnaire States ---
     private val _userName = MutableStateFlow(prefs.getString("user_name", "Rodrigo C. G.") ?: "Rodrigo C. G.")
@@ -409,6 +434,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().putString("optional_muscle_focus", focusCSV).apply()
     }
 
+    init {
+        loadTabs()
+        updateChosenSplitPattern(_chosenSplitPattern.value)
+        selectedFocus = _selectedObjective.value
+        experienceLevel = _userFitnessLevel.value
+        switchActiveTab(_activeTab.value)
+        checkAndLoadCrashLog()
+        Log.d(TAG, "WorkoutViewModel successfully initialized.")
+    }
+
     // --- Core Database and Generation ---
 
     fun generateNewWorkout() {
@@ -417,83 +452,98 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             _generationError.value = null
             _lastGeneratedWorkout.value = null
 
-            val richNotes = """
-                Nome do Usuário: ${_userName.value}
-                Idade: ${_userAge.value}
-                Sexo: ${_userGender.value}
-                Altura: ${_userHeight.value} cm
-                Peso: ${_userWeight.value} kg
-                Duração planejada: ${_workoutDurationChoice.value}
-                Local de treino: ${_workoutLocation.value}
-                Foco muscular opcional: ${_optionalMuscleFocus.value}
-                Observações de limitação: $specialNotes
-            """.trimIndent()
+            try {
+                val richNotes = """
+                    Nome do Usuário: ${_userName.value}
+                    Idade: ${_userAge.value}
+                    Sexo: ${_userGender.value}
+                    Altura: ${_userHeight.value} cm
+                    Peso: ${_userWeight.value} kg
+                    Duração planejada: ${_workoutDurationChoice.value}
+                    Local de treino: ${_workoutLocation.value}
+                    Foco muscular opcional: ${_optionalMuscleFocus.value}
+                    Observações de limitação: $specialNotes
+                """.trimIndent()
 
-            val result = GeminiClient.generateWorkout(
-                splitType = selectedSplit,
-                focus = _selectedObjective.value,
-                specialNotes = richNotes,
-                experienceLevel = _userFitnessLevel.value,
-                workoutsPerDay = _workoutsPerDay.value,
-                workoutsPerWeek = _workoutsPerWeekCount.value
-            )
+                val result = GeminiClient.generateWorkout(
+                    splitType = selectedSplit,
+                    focus = _selectedObjective.value,
+                    specialNotes = richNotes,
+                    experienceLevel = _userFitnessLevel.value,
+                    workoutsPerDay = _workoutsPerDay.value,
+                    workoutsPerWeek = _workoutsPerWeekCount.value
+                )
 
-            _isGenerating.value = false
+                _isGenerating.value = false
 
-            when (result) {
-                is GeneratedWorkoutResult.Success -> {
-                    _lastGeneratedWorkout.value = result.cycle.firstOrNull()
-                    _showGeneratedSuccessDialog.value = true
+                when (result) {
+                    is GeneratedWorkoutResult.Success -> {
+                        _lastGeneratedWorkout.value = result.cycle.firstOrNull()
+                        _showGeneratedSuccessDialog.value = true
 
-                    // Auto-save generated workouts in DB and init Cycle
-                    val split = selectedSplit
-                    val objective = _selectedObjective.value
-                    val generatedTabName = "IA: $split $objective"
-                    
-                    if (_tabs.value.none { it.name == generatedTabName }) {
-                        addTab(com.example.model.RoutineCategory(name = generatedTabName, emoji = "🤖", colorHex = "#BB86FC"))
-                    } else {
-                        switchActiveTab(generatedTabName)
-                    }
-
-                    viewModelScope.launch(Dispatchers.IO) {
-                        val savedIds = mutableListOf<String>()
-                        result.cycle.forEach { work ->
-                            val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
-                            val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
-                            val json = adapter.toJson(work.exercises) ?: "[]"
-
-                            val id = UUID.randomUUID().toString()
-                            savedIds.add(id)
-                            val saved = SavedWorkout(
-                                id = id,
-                                title = work.title,
-                                splitType = work.splitType,
-                                focus = work.focus,
-                                exercisesJson = json,
-                                category = generatedTabName,
-                                isFavorite = false
-                            )
-                            repository.saveWorkout(saved)
-                        }
-                        // Start 90-days Cycle
-                        val nowMs = System.currentTimeMillis()
-                        prefs.edit()
-                             .putString("cycle_workout_ids_$generatedTabName", savedIds.joinToString(","))
-                             .putInt("cycle_current_index_$generatedTabName", 0)
-                             .putLong("cycle_start_date_ms_$generatedTabName", nowMs)
-                             .putInt("cycle_total_workouts_completed_$generatedTabName", 0)
-                             .apply()
+                        // Auto-save generated workouts in DB and init Cycle
+                        val split = selectedSplit
+                        val objective = _selectedObjective.value
+                        val generatedTabName = "IA: $split $objective"
                         
-                        _currentCycleWorkoutIds.value = savedIds
-                        _currentCycleIndex.value = 0
-                        _cycleTotalWorkoutsCompleted.value = 0
-                        _cycleStartDateMs.value = nowMs
+                        if (_tabs.value.none { it.name == generatedTabName }) {
+                            addTab(com.example.model.RoutineCategory(name = generatedTabName, emoji = "🤖", colorHex = "#BB86FC"))
+                        } else {
+                            switchActiveTab(generatedTabName)
+                        }
+
+                        viewModelScope.launch(Dispatchers.IO) {
+                            try {
+                                val savedIds = mutableListOf<String>()
+                                result.cycle.forEach { work ->
+                                    val listType = Types.newParameterizedType(List::class.java, WorkoutExercise::class.java)
+                                    val adapter = moshi.adapter<List<WorkoutExercise>>(listType)
+                                    val json = adapter.toJson(work.exercises) ?: "[]"
+
+                                    val id = UUID.randomUUID().toString()
+                                    savedIds.add(id)
+                                    val saved = SavedWorkout(
+                                        id = id,
+                                        title = work.title,
+                                        splitType = work.splitType,
+                                        focus = work.focus,
+                                        exercisesJson = json,
+                                        category = generatedTabName,
+                                        isFavorite = false
+                                    )
+                                    repository.saveWorkout(saved)
+                                }
+                                // Start 90-days Cycle
+                                val nowMs = System.currentTimeMillis()
+                                prefs.edit()
+                                     .putString("cycle_workout_ids_$generatedTabName", savedIds.joinToString(","))
+                                     .putInt("cycle_current_index_$generatedTabName", 0)
+                                     .putLong("cycle_start_date_ms_$generatedTabName", nowMs)
+                                     .putInt("cycle_total_workouts_completed_$generatedTabName", 0)
+                                     .apply()
+                                
+                                withContext(Dispatchers.Main) {
+                                    _currentCycleWorkoutIds.value = savedIds
+                                    _currentCycleIndex.value = 0
+                                    _cycleTotalWorkoutsCompleted.value = 0
+                                    _cycleStartDateMs.value = nowMs
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("WorkoutViewModel", "Error saving generated workouts", e)
+                                withContext(Dispatchers.Main) {
+                                    _generationError.value = "Erro ao persistir treinos localmente: ${e.localizedMessage}"
+                                }
+                            }
+                        }
+                    }
+                    is GeneratedWorkoutResult.Error -> {
+                        _generationError.value = result.message
                     }
                 }
-                is GeneratedWorkoutResult.Error -> {
-                    _generationError.value = result.message
-                }
+            } catch (e: Exception) {
+                _isGenerating.value = false
+                android.util.Log.e("WorkoutViewModel", "Error inside generateNewWorkout coroutine", e)
+                _generationError.value = "Erro na geração: ${e.localizedMessage}"
             }
         }
     }

@@ -36,17 +36,29 @@ object GeminiClient {
         workoutsPerDay: Int,
         workoutsPerWeek: Int
     ): GeneratedWorkoutResult = withContext(Dispatchers.IO) {
+        val dayLetters = when (workoutsPerWeek) {
+            1 -> listOf("A")
+            2 -> listOf("A", "B")
+            3 -> listOf("A", "B", "C")
+            4 -> listOf("A", "B", "C", "D")
+            5 -> listOf("A", "B", "C", "D", "E")
+            6 -> listOf("A", "B", "C", "A", "B", "C")
+            else -> listOf("A", "B", "C")
+        }
+        val fallbackList = dayLetters.mapIndexed { idx, letter ->
+            val displayId = if (workoutsPerWeek == 6) {
+                val suffix = if (idx < 3) "1" else "2"
+                "$letter$suffix"
+            } else {
+                letter
+            }
+            getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, displayId)
+        }
+
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "Gemini API key is not configured. Falling back to high-grade local generation.")
-            return@withContext GeneratedWorkoutResult.Success(
-                listOf(
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "A"),
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "B"),
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "C")
-                ),
-                isLocalFallback = true
-            )
+            return@withContext GeneratedWorkoutResult.Success(fallbackList, isLocalFallback = true)
         }
 
         val systemInstruction = """
@@ -218,8 +230,8 @@ object GeminiClient {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     val errorMsg = response.body?.string() ?: "Unknown error"
-                    Log.e(TAG, "Gemini API request failed: $errorMsg")
-                    return@withContext GeneratedWorkoutResult.Error("API Error: ${response.code} - Fallback local ativado.")
+                    Log.e(TAG, "Gemini API request failed: $errorMsg. Falling back to local generation.")
+                    return@withContext GeneratedWorkoutResult.Success(fallbackList, isLocalFallback = true)
                 }
 
                 val responseBodyStr = response.body?.string() ?: ""
@@ -238,19 +250,13 @@ object GeminiClient {
                 if (generatedWorkout.isNotEmpty()) {
                     GeneratedWorkoutResult.Success(generatedWorkout, isLocalFallback = false)
                 } else {
-                    GeneratedWorkoutResult.Error("Erro ao analisar a resposta gerada. Gerando localmente.")
+                    Log.e(TAG, "Parsing returned empty workout cycle. Falling back to local generation.")
+                    GeneratedWorkoutResult.Success(fallbackList, isLocalFallback = true)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Exception during Gemini flow: ", e)
-            GeneratedWorkoutResult.Success(
-                listOf(
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "A"),
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "B"),
-                    getLocalFallbackWorkout(splitType, focus, specialNotes, experienceLevel, workoutsPerDay, workoutsPerWeek, "C")
-                ),
-                isLocalFallback = true
-            )
+            GeneratedWorkoutResult.Success(fallbackList, isLocalFallback = true)
         }
     }
 
@@ -363,10 +369,70 @@ object GeminiClient {
         workoutsPerWeek: Int,
         dayId: String = "A"
     ): GeneratedWorkout {
+        val baseSplit = splitType.uppercase()
+        val dayUpper = dayId.take(1).uppercase()
+        
+        val resolvedSplitUpper = when {
+            baseSplit.contains("PPL") || baseSplit.contains("PUSH") || baseSplit.contains("PULL") || baseSplit.contains("LEGS") -> {
+                when (dayUpper) {
+                    "A" -> "PUSH"
+                    "B" -> "PULL"
+                    "C" -> "PERNAS"
+                    "D" -> "PUSH"
+                    "E" -> "PULL"
+                    else -> "PUSH"
+                }
+            }
+            baseSplit.contains("ABC_DENSIDADE") || baseSplit.contains("ABC") -> {
+                when (dayUpper) {
+                    "A" -> "PUSH"
+                    "B" -> "PULL"
+                    "C" -> "PERNAS"
+                    else -> "PUSH"
+                }
+            }
+            baseSplit.contains("ABCD") -> {
+                when (dayUpper) {
+                    "A" -> "PUSH"
+                    "B" -> "PULL"
+                    "C" -> "PERNAS"
+                    "D" -> "BRAÇO"
+                    else -> "PUSH"
+                }
+            }
+            baseSplit.contains("ABCDE") -> {
+                when (dayUpper) {
+                    "A" -> "PUSH"
+                    "B" -> "PULL"
+                    "C" -> "PERNAS"
+                    "D" -> "OMBRO"
+                    "E" -> "BRAÇO"
+                    else -> "PUSH"
+                }
+            }
+            baseSplit.contains("UPPER_LOWER") || baseSplit.contains("UPPER") || baseSplit.contains("LOWER") -> {
+                if (dayUpper == "A" || dayUpper == "C" || dayUpper == "E") {
+                    "PUSH" // Upper
+                } else {
+                    "PERNAS" // Lower
+                }
+            }
+            else -> baseSplit
+        }
+
+        val titleSplitName = when (resolvedSplitUpper) {
+            "PUSH" -> "Empurrar (Peito/Ombro/Tríceps)"
+            "PULL" -> "Puxar (Costas/Bíceps)"
+            "PERNAS" -> "Membros Inferiores"
+            "OMBRO" -> "Membros Superiores: Ombros"
+            "BRAÇO" -> "Membros Superiores: Braços"
+            else -> splitType
+        }
+
         val title = if (workoutsPerDay > 1) {
-            "Treino $dayId: Elite AM/PM - $splitType ($focus)"
+            "Treino $dayId: Elite AM/PM - $titleSplitName ($focus)"
         } else {
-            "Treino $dayId: Elite $experienceLevel - $splitType ($focus)"
+            "Treino $dayId: Elite $experienceLevel - $titleSplitName ($focus)"
         }
 
         // 1. Determine size (total exercises) based on duration in specialNotes or default
@@ -383,7 +449,7 @@ object GeminiClient {
         val isAdvanced = level.startsWith("Avançado", ignoreCase = true) || level.contains("Avançado", ignoreCase = true) || level.contains("Advanced", ignoreCase = true)
 
         // 2. Determine sets, reps, rests, tempo, advancedTechnique based on Objective (Focus)
-        val splitUpper = splitType.uppercase()
+        val splitUpper = resolvedSplitUpper
         val isHipertrofia = focus.contains("Hipertrofia", ignoreCase = true) || focus.contains("Recomposição", ignoreCase = true)
         val isForca = focus.contains("Força", ignoreCase = true)
         val isEmagrecimento = focus.contains("Emagrecimento", ignoreCase = true) || focus.contains("Definição", ignoreCase = true)

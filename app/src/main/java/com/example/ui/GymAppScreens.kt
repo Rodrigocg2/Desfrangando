@@ -67,9 +67,10 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
     // States from ViewModel
     val activeWorkout by viewModel.activeWorkout.collectAsState()
     val isRestTimerActive by viewModel.isRestTimerActive.collectAsState()
-    val restTimeRemaining by viewModel.restTimeRemaining.collectAsState()
-    val restTimerLimit by viewModel.restTimerLimit.collectAsState()
+    val activeRestTimeRemaining by viewModel.restTimeRemaining.collectAsState()
+    val activeRestTimerLimit by viewModel.restTimerLimit.collectAsState()
     val activeYouTubeUrl by viewModel.activeYouTubeUrl.collectAsState()
+    val activeCrashLog by viewModel.activeCrashLog.collectAsState()
 
     val googleLoggedIn by viewModel.isGoogleLoggedIn.collectAsState()
     var hasBypassedEntrance by remember { mutableStateOf(false) }
@@ -146,8 +147,8 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
                 // Quick Floating mini view for current active REST TIMER
                 if (isRestTimerActive && activeWorkout != null) {
                     RestTimerMiniOverlay(
-                        remaining = restTimeRemaining,
-                        limit = restTimerLimit,
+                        remaining = activeRestTimeRemaining,
+                        limit = activeRestTimerLimit,
                         onSkip = { viewModel.pauseSkipRestTimer() }
                     )
                 }
@@ -156,6 +157,66 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
                     InAppYouTubePlayerDialog(
                         url = url,
                         onClose = { viewModel.closeYouTubeVideo() }
+                    )
+                }
+
+                activeCrashLog?.let { crashLog ->
+                    val context = LocalContext.current
+                    AlertDialog(
+                        onDismissRequest = { viewModel.clearCrashLog() },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.BugReport, contentDescription = null, tint = ElectricOrange)
+                                Text("Oops! Erro Detectado", fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "O aplicativo detectou que ocorreu uma falha na sessão anterior. O log de erro abaixo foi salvo:",
+                                    fontSize = 12.sp,
+                                    color = TextMuted
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 240.dp)
+                                        .background(Color.Black, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                                        .padding(8.dp)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    Text(
+                                        text = crashLog,
+                                        fontFamily = TechMonospace,
+                                        fontSize = 11.sp,
+                                        color = ElectricOrange
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("Crash Log", crashLog)
+                                        clipboard.setPrimaryClip(clip)
+                                        android.widget.Toast.makeText(context, "Log de erro copiado!", android.widget.Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("GymApp", "Failed to copy crash log", e)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black)
+                            ) {
+                                Text("COPIAR ERRO")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { viewModel.clearCrashLog() }) {
+                                Text("IGNORAR & LIMPAR", color = Color.Gray)
+                            }
+                        }
                     )
                 }
             }
