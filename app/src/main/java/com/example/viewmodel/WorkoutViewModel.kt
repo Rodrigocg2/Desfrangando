@@ -50,6 +50,28 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _googleUserPhoto = MutableStateFlow(prefs.getString("google_user_photo", "") ?: "")
     val googleUserPhoto = _googleUserPhoto.asStateFlow()
 
+    private val _triggerGoogleLoginEvent = MutableStateFlow(false)
+    val triggerGoogleLoginEvent = _triggerGoogleLoginEvent.asStateFlow()
+
+    private val _googleLoginError = MutableStateFlow<String?>(null)
+    val googleLoginError = _googleLoginError.asStateFlow()
+
+    fun triggerOfficialGoogleLogin() {
+        _triggerGoogleLoginEvent.value = true
+    }
+
+    fun resetGoogleLoginTrigger() {
+        _triggerGoogleLoginEvent.value = false
+    }
+
+    fun triggerGoogleLoginError(msg: String) {
+        _googleLoginError.value = msg
+    }
+
+    fun clearGoogleLoginError() {
+        _googleLoginError.value = null
+    }
+
     private val _workoutsPerDay = MutableStateFlow(prefs.getInt("workouts_per_day", 1))
     val workoutsPerDay = _workoutsPerDay.asStateFlow()
 
@@ -59,12 +81,61 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _activeYouTubeUrl = MutableStateFlow<String?>(null)
     val activeYouTubeUrl = _activeYouTubeUrl.asStateFlow()
 
+    private val _activeExerciseNameForVideo = MutableStateFlow<String>("")
+    val activeExerciseNameForVideo = _activeExerciseNameForVideo.asStateFlow()
+
+    private val _favoriteVideoIds = MutableStateFlow<Set<String>>(prefs.getStringSet("favorite_video_ids", emptySet()) ?: emptySet())
+    val favoriteVideoIds = _favoriteVideoIds.asStateFlow()
+
+    private val _watchedVideoHistory = MutableStateFlow<List<String>>(
+        try {
+            val jsonString = prefs.getString("watched_video_history_json", "[]") ?: "[]"
+            val listType = Types.newParameterizedType(List::class.java, String::class.java)
+            moshi.adapter<List<String>>(listType).fromJson(jsonString) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    )
+    val watchedVideoHistory = _watchedVideoHistory.asStateFlow()
+
     fun playYouTubeVideo(url: String) {
+        _activeYouTubeUrl.value = url
+    }
+
+    fun playYouTubeVideoForExercise(exerciseName: String, url: String) {
+        _activeExerciseNameForVideo.value = exerciseName
         _activeYouTubeUrl.value = url
     }
 
     fun closeYouTubeVideo() {
         _activeYouTubeUrl.value = null
+    }
+
+    fun toggleFavoriteVideo(videoId: String) {
+        val currentSet = prefs.getStringSet("favorite_video_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (currentSet.contains(videoId)) {
+            currentSet.remove(videoId)
+        } else {
+            currentSet.add(videoId)
+        }
+        _favoriteVideoIds.value = currentSet
+        prefs.edit().putStringSet("favorite_video_ids", currentSet).apply()
+    }
+
+    fun addToVideoHistory(videoId: String, exerciseName: String, title: String, channel: String, views: String) {
+        val item = "$videoId|$exerciseName|$title|$channel|$views"
+        val currentList = _watchedVideoHistory.value.toMutableList()
+        currentList.removeAll { it.startsWith("$videoId|") || it == item }
+        currentList.add(0, item)
+        val limited = currentList.take(20)
+        _watchedVideoHistory.value = limited
+        try {
+            val listType = Types.newParameterizedType(List::class.java, String::class.java)
+            val json = moshi.adapter<List<String>>(listType).toJson(limited)
+            prefs.edit().putString("watched_video_history_json", json).apply()
+        } catch (e: Exception) {
+            // ignore
+        }
     }
 
     private val _userHeight = MutableStateFlow(prefs.getFloat("user_height", 180.0f))
@@ -334,7 +405,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Log setup is consolidated into the unified init block below
 
     // --- Premium Form Questionnaire States ---
-    private val _userName = MutableStateFlow(prefs.getString("user_name", "Rodrigo C. G.") ?: "Rodrigo C. G.")
+    private val _userName = MutableStateFlow(prefs.getString("user_name", "Atleta") ?: "Atleta")
     val userName = _userName.asStateFlow()
 
     private val _userAge = MutableStateFlow(prefs.getString("user_age", "25") ?: "25")
@@ -889,16 +960,51 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().putFloat("user_height", height).apply()
     }
 
+    fun getSavedGoogleAccounts(): List<Triple<String, String, String>> {
+        val set = prefs.getStringSet("google_saved_accounts_set", emptySet()) ?: emptySet()
+        if (set.isEmpty()) {
+            val defaultName = "Rodrigo"
+            val defaultEmail = "Rodrigocg2@gmail.com"
+            val defaultPhoto = "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=256&q=80"
+            val defaultSet = setOf("$defaultName|$defaultEmail|$defaultPhoto")
+            prefs.edit().putStringSet("google_saved_accounts_set", defaultSet).apply()
+            return listOf(Triple(defaultName, defaultEmail, defaultPhoto))
+        }
+        return set.map {
+            val parts = it.split("|")
+            val name = parts.getOrNull(0) ?: "Rodrigo"
+            val email = parts.getOrNull(1) ?: "Rodrigocg2@gmail.com"
+            val photo = parts.getOrNull(2) ?: ""
+            Triple(name, email, photo)
+        }
+    }
+
+    fun saveGoogleAccountToCache(name: String, email: String, photo: String) {
+        val currentSet = prefs.getStringSet("google_saved_accounts_set", emptySet())?.toMutableSet() ?: mutableSetOf()
+        currentSet.removeAll { it.contains("|$email|") || it.endsWith("|$email") || it.contains("|$email") }
+        currentSet.add("$name|$email|$photo")
+        prefs.edit().putStringSet("google_saved_accounts_set", currentSet).apply()
+    }
+
     fun loginWithGoogle(name: String, email: String, photo: String) {
+        val finalPhoto = photo.ifEmpty { 
+            "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=256&q=80"
+        }
         _isGoogleLoggedIn.value = true
         _googleUserName.value = name
         _googleUserEmail.value = email
-        _googleUserPhoto.value = photo
+        _googleUserPhoto.value = finalPhoto
+        
+        // Overwrite standard athlete name so that the form pulls the name automatically
+        _userName.value = name
+        
+        saveGoogleAccountToCache(name, email, finalPhoto)
         prefs.edit()
             .putBoolean("google_logged_in", true)
             .putString("google_user_name", name)
             .putString("google_user_email", email)
-            .putString("google_user_photo", photo)
+            .putString("google_user_photo", finalPhoto)
+            .putString("user_name", name)
             .apply()
     }
 

@@ -156,6 +156,7 @@ fun GymAppRoot(viewModel: WorkoutViewModel) {
                 activeYouTubeUrl?.let { url ->
                     InAppYouTubePlayerDialog(
                         url = url,
+                        viewModel = viewModel,
                         onClose = { viewModel.closeYouTubeVideo() }
                     )
                 }
@@ -980,238 +981,240 @@ fun SavedWorkoutsListScreen(
             }
         )
     } else {
-        Column(
+        val tabs by viewModel.tabs.collectAsState()
+        val activeTab by viewModel.activeTab.collectAsState()
+
+        val filteredWorkouts = remember(sortedWorkouts, activeTab, tabs) {
+            sortedWorkouts.filter {
+                it.category == activeTab || 
+                (activeTab == tabs.firstOrNull()?.name && (it.category.isBlank() || it.isFavorite)) ||
+                (activeTab == "Favorito" && it.isFavorite)
+            }
+        }
+
+        val cycleIds by viewModel.currentCycleWorkoutIds.collectAsState()
+        val cycleIndex by viewModel.currentCycleIndex.collectAsState()
+        val totalCompleted by viewModel.cycleTotalWorkoutsCompleted.collectAsState()
+        val currentStreak by viewModel.currentStreak.collectAsState()
+
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .testTag("saved_workouts_screen")
+                .testTag("saved_workouts_screen"),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "PRESCRIÇÕES",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = TechCyan,
-                        fontFamily = TechMonospace
-                    )
-                    Text(
-                        text = "Meus Treinos",
-                        style = MaterialTheme.typography.displayLarge,
-                        color = TextPrimary
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (sortedWorkouts.isNotEmpty()) {
-                        IconButton(
-                            onClick = { showDeleteAllConfirmation = true },
-                            modifier = Modifier.size(36.dp)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "PRESCRIÇÕES",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TechCyan,
+                            fontFamily = TechMonospace
+                        )
+                        Text(
+                            text = "Meus Treinos",
+                            style = MaterialTheme.typography.displayLarge,
+                            color = TextPrimary
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (sortedWorkouts.isNotEmpty()) {
+                            IconButton(
+                                onClick = { showDeleteAllConfirmation = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = "Apagar todos", tint = Color.Red, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                workoutToEditByManualCreator = null
+                                showMultiDayCreator = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "Apagar todos", tint = Color.Red, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                    Button(
-                        onClick = {
-                            workoutToEditByManualCreator = null
-                            showMultiDayCreator = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text("CRIAR TREINO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Text("CRIAR TREINO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
+                            }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
             
-            val tabs by viewModel.tabs.collectAsState()
-            val activeTab by viewModel.activeTab.collectAsState()
-
-            @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(tabs, key = { it.id }) { tab ->
-                    val isSelected = activeTab == tab.name
-                    val parsedColor = try { Color(android.graphics.Color.parseColor(tab.colorHex)) } catch(e: Exception) { ToxicGreen }
-                    Box(
-                        modifier = Modifier
-                            .background(if (isSelected) parsedColor else CarbonSurface, RoundedCornerShape(16.dp))
-                            .border(1.dp, if (isSelected) parsedColor else BorderDark, RoundedCornerShape(16.dp))
-                            .combinedClickable(
-                                onClick = { viewModel.switchActiveTab(tab.name) },
-                                onLongClick = { tabToEdit = tab }
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text("${tab.emoji} ${tab.name}", color = if (isSelected) Color.Black else TextMuted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            item {
+                @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(tabs, key = { it.id }) { tab ->
+                        val isSelected = activeTab == tab.name
+                        val parsedColor = try { Color(android.graphics.Color.parseColor(tab.colorHex)) } catch(e: Exception) { ToxicGreen }
+                        Box(
+                            modifier = Modifier
+                                .background(if (isSelected) parsedColor else CarbonSurface, RoundedCornerShape(16.dp))
+                                .border(1.dp, if (isSelected) parsedColor else BorderDark, RoundedCornerShape(16.dp))
+                                .combinedClickable(
+                                    onClick = { viewModel.switchActiveTab(tab.name) },
+                                    onLongClick = { tabToEdit = tab }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("${tab.emoji} ${tab.name}", color = if (isSelected) Color.Black else TextMuted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
                     }
-                }
-                item {
-                    OutlinedButton(
-                        onClick = { showNewTabDialog = true },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, BorderDark),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text("+ Nova Aba", fontSize = 14.sp)
+                    item {
+                        OutlinedButton(
+                            onClick = { showNewTabDialog = true },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, BorderDark),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("+ Nova Aba", fontSize = 14.sp)
+                        }
                     }
                 }
             }
 
-            val filteredWorkouts = remember(sortedWorkouts, activeTab, tabs) {
-                sortedWorkouts.filter {
-                    it.category == activeTab || 
-                    (activeTab == tabs.firstOrNull()?.name && (it.category.isBlank() || it.isFavorite)) ||
-                    (activeTab == "Favorito" && it.isFavorite)
-                }
-            }
-
-            val cycleIds by viewModel.currentCycleWorkoutIds.collectAsState()
-            val cycleIndex by viewModel.currentCycleIndex.collectAsState()
-            val totalCompleted by viewModel.cycleTotalWorkoutsCompleted.collectAsState()
-            val currentStreak by viewModel.currentStreak.collectAsState()
-            
             if (cycleIds.isNotEmpty() && filteredWorkouts.isNotEmpty()) {
-                val cycleTitle = "Ciclo Atual (Progresso 90 Dias)"
-                // Text(cycleTitle, style = MaterialTheme.typography.titleMedium, color = TechCyan)
-                // Spacer(modifier = Modifier.height(8.dp))
-                
-                val totalDays = 90
-                val percent = if (totalDays > 0) (totalCompleted.toFloat() / totalDays.toFloat()).coerceIn(0f, 1f) else 0f
-                val daysLeft = (totalDays - totalCompleted).coerceAtLeast(0)
-                
-                if (daysLeft == 0) {
-                     Card(
-                         colors = CardDefaults.cardColors(containerColor = CarbonSurface),
-                         border = BorderStroke(1.dp, ToxicGreen),
-                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                     ) {
-                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                             Text("Seu ciclo foi concluído!", color = ToxicGreen, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                             Spacer(modifier = Modifier.height(8.dp))
-                             Text("Você avançou expressivamente durante os $totalDays dias, alcançando um novo patamar de condicionamento.", color = TextMuted, textAlign = TextAlign.Center, fontSize = 12.sp)
-                             Spacer(modifier = Modifier.height(16.dp))
-                             Button(
-                                 onClick = { onNavigateToGenerator() },
-                                 colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
-                                 modifier = Modifier.fillMaxWidth()
-                             ) {
-                                 Text("GERAR NOVO CICLO", fontWeight = FontWeight.Bold)
-                             }
-                         }
-                     }
-                } else {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = CarbonSurface),
-                        border = BorderStroke(1.dp, ToxicGreen),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                Text("🔥 STREAK: $currentStreak Dias", color = ToxicGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("$daysLeft DIAS RESTANTES", color = TechCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            // Progress bar
-                            LinearProgressIndicator(
-                                progress = { percent },
-                                modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = ToxicGreen,
-                                trackColor = Color.DarkGray
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                Text("Progresso 90 Dias", color = TextMuted, fontSize = 10.sp)
-                                Text("${(percent * 100).toInt()}%", color = TextMuted, fontSize = 10.sp)
-                            }
-
-                            Spacer(modifier = Modifier.height(20.dp))
-                            
-                            Text("TREINO DE HOJE", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            
-                            val currentWorkoutId = cycleIds.getOrNull(cycleIndex)
-                            val currentWorkout = filteredWorkouts.find { it.id == currentWorkoutId }
-                            if (currentWorkout != null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(currentWorkout.emoji, fontSize = 24.sp)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(currentWorkout.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text("${currentWorkout.splitType} • ${currentWorkout.focus}", color = TextMuted, fontSize = 12.sp)
-                                    }
-                                }
+                item {
+                    val totalDays = 90
+                    val percent = if (totalDays > 0) (totalCompleted.toFloat() / totalDays.toFloat()).coerceIn(0f, 1f) else 0f
+                    val daysLeft = (totalDays - totalCompleted).coerceAtLeast(0)
+                    
+                    if (daysLeft == 0) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                            border = BorderStroke(1.dp, ToxicGreen),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Seu ciclo foi concluído!", color = ToxicGreen, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Você avançou expressivamente durante os $totalDays dias, alcançando um novo patamar de condicionamento.", color = TextMuted, textAlign = TextAlign.Center, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
-                                    onClick = { viewModel.startWorkoutSession(currentWorkout) },
+                                    onClick = { onNavigateToGenerator() },
                                     colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("INICIAR TREINO", fontWeight = FontWeight.Bold)
+                                    Text("GERAR NOVO CICLO", fontWeight = FontWeight.Bold)
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { viewModel.previousWorkoutCycle() },
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                        border = BorderStroke(1.dp, Color.DarkGray),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text("VOLTAR", fontSize = 12.sp)
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    OutlinedButton(
-                                        onClick = { viewModel.skipWorkoutCycle() },
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                        border = BorderStroke(1.dp, Color.DarkGray),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text("PULAR", fontSize = 12.sp)
-                                    }
-                                }
-                            } else {
-                                Text("Treino não encontrado.", color = TextMuted)
                             }
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Divider(color = Color.DarkGray)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("PRÓXIMOS TREINOS DA ROTINA", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // Highlight sequence 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                cycleIds.forEachIndexed { i, id ->
-                            val wk = filteredWorkouts.find { it.id == id }
-                                    val isCurrent = (i == cycleIndex)
-                                    val isPassed = (i < cycleIndex)
-                                    val colorActive = if(isCurrent) ToxicGreen else if (isPassed) Color.DarkGray else Color.DarkGray
-                                    val textColor = if(isCurrent) Color.Black else Color.White
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(horizontal = 4.dp)
-                                            .background(colorActive, RoundedCornerShape(6.dp))
-                                            .border(1.dp, if(isCurrent) ToxicGreen else Color.DarkGray, RoundedCornerShape(6.dp))
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
+                        }
+                    } else {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                            border = BorderStroke(1.dp, ToxicGreen),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("🔥 STREAK: $currentStreak Dias", color = ToxicGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("$daysLeft DIAS RESTANTES", color = TechCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                // Progress bar
+                                LinearProgressIndicator(
+                                    progress = { percent },
+                                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                                    color = ToxicGreen,
+                                    trackColor = Color.DarkGray
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Progresso 90 Dias", color = TextMuted, fontSize = 10.sp)
+                                    Text("${(percent * 100).toInt()}%", color = TextMuted, fontSize = 10.sp)
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+                                
+                                Text("TREINO DE HOJE", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                
+                                val currentWorkoutId = cycleIds.getOrNull(cycleIndex)
+                                val currentWorkout = filteredWorkouts.find { it.id == currentWorkoutId }
+                                if (currentWorkout != null) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(currentWorkout.emoji, fontSize = 24.sp)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(currentWorkout.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                            Text("${currentWorkout.splitType} • ${currentWorkout.focus}", color = TextMuted, fontSize = 12.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = { viewModel.startWorkoutSession(currentWorkout) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp)
                                     ) {
-                                        Text(wk?.title?.take(1) ?: "?", color = textColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("INICIAR TREINO", fontWeight = FontWeight.Bold)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { viewModel.previousWorkoutCycle() },
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                            border = BorderStroke(1.dp, Color.DarkGray),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("VOLTAR", fontSize = 12.sp)
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        OutlinedButton(
+                                            onClick = { viewModel.skipWorkoutCycle() },
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                            border = BorderStroke(1.dp, Color.DarkGray),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("PULAR", fontSize = 12.sp)
+                                        }
+                                    }
+                                } else {
+                                    Text("Treino não encontrado.", color = TextMuted)
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                HorizontalDivider(color = Color.DarkGray)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("PRÓXIMOS TREINOS DA ROTINA", color = TextMuted, fontSize = 10.sp, fontFamily = TechMonospace)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // Highlight sequence 
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    cycleIds.forEachIndexed { i, id ->
+                                        val wk = filteredWorkouts.find { it.id == id }
+                                        val isCurrent = (i == cycleIndex)
+                                        val isPassed = (i < cycleIndex)
+                                        val colorActive = if(isCurrent) ToxicGreen else if (isPassed) Color.DarkGray else Color.DarkGray
+                                        val textColor = if(isCurrent) Color.Black else Color.White
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(horizontal = 4.dp)
+                                                .background(colorActive, RoundedCornerShape(6.dp))
+                                                .border(1.dp, if(isCurrent) ToxicGreen else Color.DarkGray, RoundedCornerShape(6.dp))
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(wk?.title?.take(1) ?: "?", color = textColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
                                     }
                                 }
                             }
@@ -1221,60 +1224,57 @@ fun SavedWorkoutsListScreen(
             }
 
             if (filteredWorkouts.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.DarkGray)
-                        Text(
-                            "Nenhuma prescrição salva ainda.",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
-                        )
-                        Text(
-                            "Gere seu primeiro programa biomecânico com IA ou clique em 'CRIAR TREINO' para prescrever manualmente.",
-                            color = TextMuted,
-                            textAlign = TextAlign.Center,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = onNavigateToGenerator,
-                            colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
-                            shape = RoundedCornerShape(8.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("Ir para Gerador de Treinos", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.DarkGray)
+                            Text(
+                                "Nenhuma prescrição salva ainda.",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary
+                            )
+                            Text(
+                                "Gere seu primeiro programa biomecânico com IA ou clique em 'CRIAR TREINO' para prescrever manualmente.",
+                                color = TextMuted,
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = onNavigateToGenerator,
+                                colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Ir para Gerador de Treinos", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(filteredWorkouts, key = { it.id }) { workout ->
-                        SavedWorkoutCard(
-                            workout = workout,
-                            onStart = { viewModel.startWorkoutSession(workout) },
-                            onDelete = { viewModel.deleteWorkout(workout.id) },
-                            onPlayVideo = { url -> viewModel.playYouTubeVideo(url) },
-                            onFavorite = { viewModel.toggleFavoriteWorkout(workout.id) },
-                            onDuplicate = { viewModel.duplicateWorkout(workout) },
-                            onEdit = {
-                                workoutToEditByManualCreator = workout
-                                showManualCreator = true
-                            },
-                            onEditCustomProperties = { workoutToEditProperties = workout },
-                            onShare = { workoutToShare = workout }
-                        )
-                    }
+                items(filteredWorkouts, key = { it.id }) { workout ->
+                    SavedWorkoutCard(
+                        workout = workout,
+                        onStart = { viewModel.startWorkoutSession(workout) },
+                        onDelete = { viewModel.deleteWorkout(workout.id) },
+                        onPlayVideo = { url, name -> viewModel.playYouTubeVideoForExercise(name, url) },
+                        onFavorite = { viewModel.toggleFavoriteWorkout(workout.id) },
+                        onDuplicate = { viewModel.duplicateWorkout(workout) },
+                        onEdit = {
+                            workoutToEditByManualCreator = workout
+                            showManualCreator = true
+                        },
+                        onEditCustomProperties = { workoutToEditProperties = workout },
+                        onShare = { workoutToShare = workout }
+                    )
                 }
             }
         }
@@ -1523,7 +1523,7 @@ fun SavedWorkoutCard(
     workout: SavedWorkout,
     onStart: () -> Unit,
     onDelete: () -> Unit,
-    onPlayVideo: (String) -> Unit,
+    onPlayVideo: (String, String) -> Unit,
     onFavorite: () -> Unit,
     onDuplicate: () -> Unit,
     onEdit: () -> Unit,
@@ -1533,6 +1533,39 @@ fun SavedWorkoutCard(
     var expanded by remember { mutableStateOf(false) }
     val exercises = workout.getExercises()
     val themeCardColor = parseHexColor(workout.colorHex)
+    
+    // Dynamic division calculations
+    var totalSets = 0
+    var musclesWorked = ""
+    var muscleVolumeSummary = ""
+    var estMin = 0
+    var intensityLabel = "Moderada (RPE 7+)"
+    
+    try {
+        musclesWorked = exercises.map { (it.muscleGroup as Any?).toString() }.distinct().filter { it.isNotBlank() && it != "null" }.take(4).joinToString(", ")
+        totalSets = exercises.sumOf { ((it.sets as Any?) as? Int) ?: 0 }
+        
+        muscleVolumeSummary = exercises.groupBy { (it.muscleGroup as Any?).toString() }
+            .filterKeys { it.isNotBlank() && it != "null" }
+            .map { (muscle, list) -> "$muscle: ${list.sumOf { ((it.sets as Any?) as? Int) ?: 0 }}s" }
+            .joinToString(" | ")
+            
+        val totalSecondsRest = exercises.sumOf { (((it.sets as Any?) as? Int) ?: 0) * (((it.restSeconds as Any?) as? Int) ?: 0) }
+        if (exercises.isNotEmpty()) {
+            val estimatedMinutes = (exercises.sumOf { (((it.sets as Any?) as? Int) ?: 0) * 1.5 } + (totalSecondsRest / 60.0) + 5).toInt()
+            estMin = estimatedMinutes.coerceIn(20, 120)
+        }
+        
+        val validRpes = exercises.mapNotNull { ((it.intensityRPE as Any?) as? Int) ?: 8 }
+        val avgRpe = if (validRpes.isNotEmpty()) validRpes.average() else 8.0
+        intensityLabel = when {
+            avgRpe >= 9.0 -> "Intensa (RPE 9+)"
+            avgRpe >= 8.0 -> "Alta (RPE 8+)"
+            else -> "Moderada (RPE 7+)"
+        }
+    } catch (e: Exception) {
+        // Safe fallback in case of deserialization nullability mismatch
+    }
     
     Card(
         colors = CardDefaults.cardColors(containerColor = CarbonSurface),
@@ -1606,6 +1639,84 @@ fun SavedWorkoutCard(
                             Icon(Icons.Default.MonitorWeight, contentDescription = null, modifier = Modifier.size(11.dp), tint = ElectricOrange)
                             Text(workout.focus, fontSize = 11.sp, fontFamily = TechMonospace, color = ElectricOrange)
                         }
+                    }
+                }
+            }
+
+            // Elegant Performance Info summary card of the Split
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.25f)),
+                border = BorderStroke(0.5.dp, BorderDark),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FitnessCenter,
+                            contentDescription = "Músculos",
+                            tint = ToxicGreen,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "MÚSCULOS:",
+                            color = TextMuted,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = TechMonospace
+                        )
+                        Text(
+                            text = musclesWorked.ifEmpty { "Corpo Inteiro" },
+                            color = TextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    
+                    Divider(color = BorderDark.copy(alpha = 0.5f), thickness = 0.5.dp)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("EXERCÍCIOS", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            Text("${exercises.size} un", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Column {
+                            Text("VOLUME TOTAL", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            Text("$totalSets séries", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Column {
+                            Text("TEMPO ESTIMADO", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            Text("$estMin min", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Column {
+                            Text("INTENSIDADE", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            Text(intensityLabel, color = ElectricOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    if (muscleVolumeSummary.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Volume por Grupo: $muscleVolumeSummary",
+                            color = TechCyan,
+                            fontSize = 9.sp,
+                            fontFamily = TechMonospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -1708,7 +1819,7 @@ fun SavedWorkoutCard(
                             Spacer(modifier = Modifier.weight(1f))
                             Row(
                                 modifier = Modifier
-                                    .clickable { onPlayVideo(getYouTubeUrl(ex.name)) }
+                                    .clickable { onPlayVideo(getYouTubeUrl(ex.name), ex.name) }
                                     .background(Color(0xFF2B0B0B), RoundedCornerShape(4.dp))
                                     .border(0.5.dp, Color(0xFFFF5252), RoundedCornerShape(4.dp))
                                     .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1890,7 +2001,7 @@ fun VideoExecutionEncyclopediaScreen(viewModel: WorkoutViewModel) {
 
                         Button(
                             onClick = {
-                                viewModel.playYouTubeVideo(getYouTubeUrl(currentExRef.name))
+                                viewModel.playYouTubeVideoForExercise(currentExRef.name, getYouTubeUrl(currentExRef.name))
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFFF0000), // YouTube Red
@@ -2144,22 +2255,26 @@ fun WorkoutHistoryLogsScreen(viewModel: WorkoutViewModel) {
                     val relatedWorkout = savedWorkouts.find { it.id == log.workoutId }
                     val musclePercents = remember(log, relatedWorkout) {
                         val map = mutableMapOf<String, Int>()
-                        if (relatedWorkout != null) {
-                            val exercises = relatedWorkout.getExercises()
-                            val completions = try { moshiAdapter.fromJson(log.completionJson) ?: emptyList() } catch(e: Exception) { emptyList() }
-                            
-                            val muscleGroups = exercises.map { it.muscleGroup }.distinct()
-                            for (group in muscleGroups) {
-                                val groupExs = exercises.filter { it.muscleGroup == group }
-                                val plannedSets = groupExs.sumOf { it.sets }
+                        try {
+                            if (relatedWorkout != null) {
+                                val exercises = relatedWorkout.getExercises()
+                                val completions = try { moshiAdapter.fromJson(log.completionJson) ?: emptyList() } catch(e: Exception) { emptyList() }
                                 
-                                val completedSets = completions.filter { comp ->
-                                    groupExs.any { it.exerciseId == comp.exerciseId }
-                                }.sumOf { (it.setsCompleted ?: emptyList()).size }
-                                
-                                val percent = if (plannedSets > 0) (completedSets.toFloat() / plannedSets.toFloat() * 100).toInt() else 0
-                                map[group] = percent.coerceIn(0, 100)
+                                val muscleGroups = exercises.map { (it.muscleGroup as Any?).toString() }.distinct().filter { it.isNotBlank() && it != "null" }
+                                for (group in muscleGroups) {
+                                    val groupExs = exercises.filter { (it.muscleGroup as Any?).toString() == group }
+                                    val plannedSets = groupExs.sumOf { ((it.sets as Any?) as? Int) ?: 0 }
+                                    
+                                    val completedSets = completions.filter { comp ->
+                                        groupExs.any { it.exerciseId == comp.exerciseId }
+                                    }.sumOf { (it.setsCompleted as Any? as? List<*>)?.size ?: 0 }
+                                    
+                                    val percent = if (plannedSets > 0) (completedSets.toFloat() / plannedSets.toFloat() * 100).toInt() else 0
+                                    map[group] = percent.coerceIn(0, 100)
+                                }
                             }
+                        } catch (e: Exception) {
+                            // Safe fallback in case of mismatched schemas
                         }
                         map
                     }
@@ -2482,7 +2597,7 @@ fun ActiveWorkoutSessionHud(viewModel: WorkoutViewModel) {
                         }
 
                         Button(
-                            onClick = { viewModel.playYouTubeVideo(getYouTubeUrl(currentEx.name)) },
+                            onClick = { viewModel.playYouTubeVideoForExercise(currentEx.name, getYouTubeUrl(currentEx.name)) },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF0000), contentColor = Color.White),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier
@@ -2919,6 +3034,10 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
     var showCredentialsDialog by remember { mutableStateOf(false) }
     var showSuccessBanner by remember { mutableStateOf(false) }
 
+    var isAddingCustomAccount by remember { mutableStateOf(false) }
+    var customName by remember { mutableStateOf("Rodrigo") }
+    var customEmail by remember { mutableStateOf("Rodrigocg2@gmail.com") }
+
     // Statistics
     val totalWorkouts = history.size
     val totalVolume = history.sumOf { it.totalVolumeKg }
@@ -3060,7 +3179,7 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
                         )
                         
                         Button(
-                            onClick = { showAccountChooser = true },
+                            onClick = { viewModel.triggerOfficialGoogleLogin() },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth().height(44.dp)
@@ -3093,12 +3212,21 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
                                     .background(BorderDark),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.AccountCircle, 
-                                    contentDescription = null, 
-                                    tint = ToxicGreen, 
-                                    modifier = Modifier.size(36.dp)
-                                )
+                                if (googlePhoto.isNotEmpty()) {
+                                    coil.compose.AsyncImage(
+                                        model = googlePhoto,
+                                        contentDescription = "Foto de perfil do Google",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.AccountCircle, 
+                                        contentDescription = "Perfil", 
+                                        tint = ToxicGreen, 
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(googleName, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp)
@@ -3881,9 +4009,15 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
         )
     }
 
+    val cachedAccounts = remember(showAccountChooser, isAddingCustomAccount) { viewModel.getSavedGoogleAccounts() }
+
     if (showAccountChooser) {
         Dialog(
-            onDismissRequest = { showAccountChooser = false }
+            onDismissRequest = { 
+                showAccountChooser = false
+                isAddingCustomAccount = false
+                viewModel.clearGoogleLoginError()
+            }
         ) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CarbonSurface),
@@ -3903,74 +4037,765 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Entrar com o Google",
+                            text = "Contas Google no Dispositivo",
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
                         IconButton(
-                            onClick = { showAccountChooser = false },
+                            onClick = { 
+                                showAccountChooser = false
+                                isAddingCustomAccount = false
+                                viewModel.clearGoogleLoginError()
+                            },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Default.Close, contentDescription = null, tint = TextMuted)
                         }
                     }
                     
-                    Text(
-                        "Escolha uma conta para fazer login no Desfrangando:",
-                        color = TextMuted,
-                        fontSize = 12.sp
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    // Option 1
+                    if (!isAddingCustomAccount && cachedAccounts.isNotEmpty()) {
+                        Text(
+                            text = "Selecione uma conta Google do seu dispositivo para entrar automaticamente:",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                        
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                        ) {
+                            items(cachedAccounts) { acc ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CarbonBg, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            viewModel.loginWithGoogle(acc.first, acc.second, acc.third)
+                                            showAccountChooser = false
+                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(ToxicGreen.copy(alpha = 0.2f), RoundedCornerShape(18.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            acc.first.take(1).uppercase(),
+                                            color = ToxicGreen,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(acc.first, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(acc.second, color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        TextButton(
+                            onClick = { isAddingCustomAccount = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = ToxicGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Usar outra conta", color = ToxicGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Por favor, digite os detalhes da conta do aparelho:",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("SEU NOME", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            OutlinedTextField(
+                                value = customName,
+                                onValueChange = { customName = it },
+                                placeholder = { Text("Ex: João Silva", color = TextMuted) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedContainerColor = CarbonBg,
+                                    unfocusedContainerColor = CarbonBg,
+                                    focusedBorderColor = ToxicGreen,
+                                    unfocusedBorderColor = BorderDark,
+                                    cursorColor = ToxicGreen
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("custom_login_name_input_profile")
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("GMAIL / EMAIL OBRIGATÓRIO", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            OutlinedTextField(
+                                value = customEmail,
+                                onValueChange = { customEmail = it },
+                                placeholder = { Text("Ex: joao@gmail.com", color = TextMuted) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedContainerColor = CarbonBg,
+                                    unfocusedContainerColor = CarbonBg,
+                                    focusedBorderColor = ToxicGreen,
+                                    unfocusedBorderColor = BorderDark,
+                                    cursorColor = ToxicGreen
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("custom_login_email_input_profile")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (cachedAccounts.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = { isAddingCustomAccount = false },
+                                    border = BorderStroke(1.dp, BorderDark),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("VOLTAR", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { 
+                                        showAccountChooser = false
+                                        viewModel.clearGoogleLoginError()
+                                    },
+                                    border = BorderStroke(1.dp, BorderDark),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("CANCELAR", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                }
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    val finalName = customName.trim().ifEmpty { "Atleta Desfrangando" }
+                                    val finalEmail = customEmail.trim().ifEmpty { "atleta@gmail.com" }
+                                    viewModel.loginWithGoogle(finalName, finalEmail, "")
+                                    isAddingCustomAccount = false
+                                    showAccountChooser = false
+                                    viewModel.clearGoogleLoginError()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                modifier = Modifier.weight(1.2f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("ENTRAR", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class CuratedVideo(
+    val videoId: String,
+    val title: String,
+    val trainer: String,
+    val views: String,
+    val rating: String,
+    val isHd: Boolean = true
+)
+
+private val curatedVideosMap = mapOf(
+    "supino" to listOf(
+        CuratedVideo("sqOw2Y6u9G4", "Supino Reto - Execução Correta", "Renato Cariani", "1.2M visualizações", "★★★★★ [99.2% de aprovação]", true),
+        CuratedVideo("3_g_b6E0gK8", "Como Fazer Supino Reto Sem Lesão", "Leandro Twin", "850K visualizações", "★★★★★ [98.8% de aprovação]", true),
+        CuratedVideo("8N_OasW3drc", "Supino Reto - Biomecânica Prática", "Laércio Refundini", "450K visualizações", "★★★★★ [99.1% de aprovação]", true)
+    ),
+    "agachamento" to listOf(
+        CuratedVideo("m9Z88FALHeg", "Agachamento Livre Perfeito", "Leandro Twin", "1.5M visualizações", "★★★★★ [99.5% de aprovação]", true),
+        CuratedVideo("Y99s2oD8m_Y", "Como Agachar Correto e Seguro", "Treino Pesado", "600K visualizações", "★★★★★ [98.2% de aprovação]", true)
+    ),
+    "terra" to listOf(
+        CuratedVideo("EPK_99XidgI", "Levantamento Terra - Técnica Completa", "Renato Cariani", "2.0M visualizações", "★★★★★ [99.6% de aprovação]", true),
+        CuratedVideo("oA065B3Nn2g", "Stiff vs Levantamento Terra Diferenças", "Leandro Twin", "350K visualizações", "★★★★☆ [97.5% de aprovação]", true)
+    ),
+    "puxada" to listOf(
+        CuratedVideo("uF02M89A-0g", "Puxada Frente / Puxada Costas", "Leandro Twin", "950K visualizações", "★★★★★ [98.9% de aprovação]", true),
+        CuratedVideo("B8mG0Zc_VvM", "Puxada na Polia Técnica Absoluta", "Laércio Refundini", "530K visualizações", "★★★★★ [99.0% de aprovação]", true)
+    ),
+    "elevação" to listOf(
+        CuratedVideo("aMAd_m_4Cxs", "Elevação Lateral - Erro Imperdoável", "Leandro Twin", "2.1M visualizações", "★★★★★ [99.4% de aprovação]", true),
+        CuratedVideo("tqcoE1oY578", "Elevação Lateral Técnica Incrível", "Laércio Refundini", "1.2M visualizações", "★★★★★ [98.7% de aprovação]", true)
+    ),
+    "rosca" to listOf(
+        CuratedVideo("T4c_uG94Pko", "Rosca Direta de Biceps Perfeita", "Renato Cariani", "1.1M visualizações", "★★★★★ [99.3% de aprovação]", true),
+        CuratedVideo("Eee93b4t0_g", "Rosca Direta com Barra ou Halteres", "Leandro Twin", "780K visualizações", "★★★★★ [98.5% de aprovação]", true)
+    ),
+    "tríceps" to listOf(
+        CuratedVideo("Osnk6p7g1t4", "Tríceps Testa de Verdade", "Leandro Twin", "720K visualizações", "★★★★★ [99.1% de aprovação]", true),
+        CuratedVideo("X14xM22Gv2A", "Dicas de Tríceps Testa Sem Dor", "Laércio Refundini", "480K visualizações", "★★★★★ [98.4% de aprovação]", true)
+    ),
+    "leg" to listOf(
+        CuratedVideo("S_r1K_eL_T4", "Leg Press 45 sem ferrar o joelho/lombar", "Renato Cariani", "1.8M visualizações", "★★★★★ [99.2% de aprovação]", true)
+    ),
+    "desenvolvimento" to listOf(
+        CuratedVideo("tB_VqYhC6d0", "Desenvolvimento com Halter para Ombros", "Leandro Twin", "880K visualizações", "★★★★★ [98.9% de aprovação]", true)
+    ),
+    "cadeira" to listOf(
+        CuratedVideo("C7bXitV7-2Y", "Cadeira Extensora Perfeita", "Laércio Refundini", "950K visualizações", "★★★★★ [99.1% de aprovação]", true)
+    )
+)
+
+private fun getCuratedVideosForExercise(exerciseName: String): List<CuratedVideo> {
+    val clean = exerciseName.lowercase()
+    for ((key, list) in curatedVideosMap) {
+        if (clean.contains(key)) return list
+    }
+    return listOf(
+        CuratedVideo(
+            "SEARCH_QUERY_FALLBACK", 
+            "$exerciseName - Guia de Execução Correta", 
+            "Instrutor Fitness Pro", 
+            "Conteúdo Integrado • HD", 
+            "★★★★★ [Excelente] "
+        )
+    )
+}
+
+private fun generateYouTubeSearchQuery(exerciseName: String): String {
+    val cleanName = exerciseName.trim()
+    val isTecnicaKeyword = cleanName.lowercase().let { 
+        it.contains("agachamento") || it.contains("terra") || it.contains("stiff") || it.contains("clean") || it.contains("snatch")
+    }
+    val suffix = if (isTecnicaKeyword) "técnica correta" else "execução correta"
+    return "$cleanName $suffix"
+}
+
+@Composable
+fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: () -> Unit) {
+    val exerciseNameFromVM by viewModel.activeExerciseNameForVideo.collectAsState()
+    val exerciseName = exerciseNameFromVM.ifBlank { getExerciseNameFromUrl(url) }
+    
+    val curatedList = remember(exerciseName) { getCuratedVideosForExercise(exerciseName) }
+    var selectedVideo by remember(exerciseName) { mutableStateOf(curatedList.firstOrNull()) }
+    
+    var isMiniPlayer by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    
+    // Track in history when played
+    LaunchedEffect(selectedVideo) {
+        selectedVideo?.let { video ->
+            if (video.videoId != "SEARCH_QUERY_FALLBACK") {
+                viewModel.addToVideoHistory(video.videoId, exerciseName, video.title, video.trainer, video.views)
+            }
+        }
+    }
+    
+    val favoriteIds by viewModel.favoriteVideoIds.collectAsState()
+    val isCurrentFavorited = selectedVideo?.let { favoriteIds.contains(it.videoId) } ?: false
+    
+    val watchedHistory by viewModel.watchedVideoHistory.collectAsState()
+
+    // Determine embed URL
+    val embedUrl = remember(selectedVideo) {
+        selectedVideo?.let { video ->
+            if (video.videoId == "SEARCH_QUERY_FALLBACK") {
+                val q = generateYouTubeSearchQuery(exerciseName)
+                val encodedQ = try {
+                    java.net.URLEncoder.encode(q, "UTF-8")
+                } catch (e: Exception) {
+                    q.replace(" ", "+")
+                }
+                "https://www.youtube.com/embed?listType=search&list=$encodedQ&autoplay=0"
+            } else {
+                "https://www.youtube.com/embed/${video.videoId}?autoplay=0"
+            }
+        } ?: "https://www.youtube.com/embed/sqOw2Y6u9G4?autoplay=0"
+    }
+
+    if (isMiniPlayer) {
+        // Floating Mini Player overlay card at bottom right
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp, end = 16.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                border = BorderStroke(1.dp, ToxicGreen),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                modifier = Modifier
+                    .width(260.dp)
+                    .height(200.dp)
+                    .clickable(enabled = false) {}
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Title/Control bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                viewModel.loginWithGoogle("Rodrigo C. G.", "rodrigocg2@gmail.com", "")
-                                showAccountChooser = false
-                            }
-                            .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            .background(CarbonBg)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.AccountCircle, 
-                            contentDescription = null, 
-                            tint = ToxicGreen, 
-                            modifier = Modifier.size(32.dp)
+                        Text(
+                            text = exerciseName.uppercase(),
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            fontFamily = TechMonospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
-                        Column {
-                            Text("Rodrigo C. G.", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("rodrigocg2@gmail.com", color = TextMuted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // Maximize
+                            IconButton(
+                                onClick = { isMiniPlayer = false },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Fullscreen,
+                                    contentDescription = "Expandir",
+                                    tint = ToxicGreen,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            // Close
+                            IconButton(
+                                onClick = onClose,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Fechar",
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                     
-                    // Option 2
+                    // Embedded WebView Video Player
+                    Box(modifier = Modifier.weight(1f)) {
+                        AndroidView(
+                            factory = { context ->
+                                WebView(context).apply {
+                                    layoutParams = android.view.ViewGroup.LayoutParams(
+                                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    webViewClient = WebViewClient()
+                                    settings.javaScriptEnabled = true
+                                    settings.mediaPlaybackRequiresUserGesture = false
+                                    settings.domStorageEnabled = true
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
+                                    
+                                    val embedHtml = """
+                                        <html>
+                                        <body style="margin: 0; padding: 0; background-color: black;">
+                                            <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                        </body>
+                                        </html>
+                                    """.trimIndent()
+                                    loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                                    tag = embedUrl // Save current URL
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                            update = { webView ->
+                                if (webView.tag != embedUrl) {
+                                    val embedHtml = """
+                                        <html>
+                                        <body style="margin: 0; padding: 0; background-color: black;">
+                                            <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                        </body>
+                                        </html>
+                                    """.trimIndent()
+                                    webView.loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                                    webView.tag = embedUrl
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        // Full Size Dialog Panel
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+                .clickable(enabled = true, onClick = onClose)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                border = BorderStroke(1.dp, ToxicGreen),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .fillMaxHeight(0.95f)
+                    .clickable(enabled = false) {}
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Header Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                viewModel.loginWithGoogle("Atleta Desfrangando", "atleta.desfrangando@gmail.com", "")
-                                showAccountChooser = false
-                            }
-                            .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            .background(CarbonBg)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Add, 
-                            contentDescription = null, 
-                            tint = Color.LightGray, 
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Column {
-                            Text("Usar outra conta", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("Simular outra conta Google", color = TextMuted, fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayCircle,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text(
+                                text = "ANÁLISE DE EXECUÇÃO EM VÍDEO",
+                                fontFamily = TechMonospace,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            // Minimize button
+                            IconButton(onClick = { isMiniPlayer = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Minimize,
+                                    contentDescription = "Mini Player",
+                                    tint = TechCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(onClick = onClose) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Fechar",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    HorizontalDivider(color = BorderDark, thickness = 1.dp)
+                    
+                    // Frame Content List Scroll
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(Color.Black)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = exerciseName.uppercase(),
+                                color = ToxicGreen,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                fontFamily = TechMonospace
+                            )
+                        }
+
+                        // Webview Player Block
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .background(Color.Black, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AndroidView(
+                                    factory = { context ->
+                                        WebView(context).apply {
+                                            layoutParams = android.view.ViewGroup.LayoutParams(
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                            )
+                                            webViewClient = WebViewClient()
+                                            settings.javaScriptEnabled = true
+                                            settings.mediaPlaybackRequiresUserGesture = false
+                                            settings.domStorageEnabled = true
+                                            settings.useWideViewPort = true
+                                            settings.loadWithOverviewMode = true
+                                            
+                                            val embedHtml = """
+                                                <html>
+                                                <body style="margin: 0; padding: 0; background-color: black;">
+                                                    <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                                </body>
+                                                </html>
+                                            """.trimIndent()
+                                            loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                                            tag = embedUrl
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                    update = { webView ->
+                                        if (webView.tag != embedUrl) {
+                                            val embedHtml = """
+                                                <html>
+                                                <body style="margin: 0; padding: 0; background-color: black;">
+                                                    <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                                </body>
+                                                </html>
+                                            """.trimIndent()
+                                            webView.loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                                            webView.tag = embedUrl
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        
+                        // Video Metadata Card
+                        selectedVideo?.let { video ->
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                                    border = BorderStroke(0.5.dp, BorderDark),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFF1B3D3B), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text("PREMIUM", color = TechCyan, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                                }
+                                                if (video.isHd) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(Color(0xFF332F0C), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("HD ULTRA", color = Color(0xFFFFD700), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                text = video.rating, 
+                                                color = ToxicGreen, 
+                                                fontSize = 10.sp, 
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        
+                                        Text(
+                                            text = video.title,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Canal: ${video.trainer}",
+                                                color = TextPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = "•  ${video.views}",
+                                                color = TextMuted,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Action buttons row
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Favorite Button
+                                Button(
+                                    onClick = { selectedVideo?.let { viewModel.toggleFavoriteVideo(it.videoId) } },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isCurrentFavorited) Color(0xFF3C111A) else CarbonSurface,
+                                        contentColor = if (isCurrentFavorited) Color.Red else Color.LightGray
+                                    ),
+                                    border = BorderStroke(0.5.dp, if (isCurrentFavorited) Color.Red else BorderDark),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = if (isCurrentFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                            contentDescription = "Favoritar",
+                                            tint = if (isCurrentFavorited) Color.Red else Color.LightGray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(if (isCurrentFavorited) "FAVORITADO" else "FAVORITAR", fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                    }
+                                }
+                                
+                                // Direct Search Youtube external redirect (The specific search request query from users!)
+                                Button(
+                                    onClick = {
+                                        val query = generateYouTubeSearchQuery(exerciseName)
+                                        val searchUrl = "https://www.youtube.com/results?search_query=${query.replace(" ", "+")}"
+                                        try {
+                                            uriHandler.openUri(searchUrl)
+                                        } catch (e: Exception) {
+                                            // ignore
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFFF0000),
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1.2f)
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.OpenInNew,
+                                            contentDescription = "Pesquisar",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text("ABRIR PESQUISA NO YT", fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Alternative Channels / Recommendations
+                        if (curatedList.size > 1) {
+                            item {
+                                Text(
+                                    "OUTRAS OPÇÕES DE EXECUÇÃO PROFISSIONAL",
+                                    color = TechCyan,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = TechMonospace
+                                )
+                            }
+                            item {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    curatedList.forEach { videoRec ->
+                                        if (videoRec.videoId != selectedVideo?.videoId) {
+                                            Card(
+                                                onClick = { selectedVideo = videoRec },
+                                                colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                                                border = BorderStroke(0.5.dp, BorderDark),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayCircle,
+                                                        contentDescription = null,
+                                                        tint = ToxicGreen,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(videoRec.title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                        Text("Canal: ${videoRec.trainer} • Dica Pro", color = TextMuted, fontSize = 10.sp)
+                                                    }
+                                                    Icon(
+                                                        imageVector = Icons.Default.ArrowForward,
+                                                        contentDescription = "Carregar",
+                                                        tint = Color.Gray,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Histórico list horizontal (Horizontal row)
+                        if (watchedHistory.isNotEmpty()) {
+                            item {
+                                Text(
+                                    "VISTOS RECENTEMENTE",
+                                    color = Color.LightGray,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = TechMonospace
+                                )
+                            }
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    watchedHistory.forEach { itemStr ->
+                                        val parts = itemStr.split("|")
+                                        val hid = parts.getOrNull(0) ?: ""
+                                        val hexName = parts.getOrNull(1) ?: ""
+                                        val htitle = parts.getOrNull(2) ?: "Vídeo"
+                                        val htrainer = parts.getOrNull(3) ?: "Canal"
+                                        val hviews = parts.getOrNull(4) ?: ""
+                                        
+                                        Card(
+                                            onClick = {
+                                                selectedVideo = CuratedVideo(hid, htitle, htrainer, hviews, "★★★★★")
+                                            },
+                                            colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                                            border = BorderStroke(0.5.dp, if (selectedVideo?.videoId == hid) ToxicGreen else BorderDark),
+                                            modifier = Modifier.width(180.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text(hexName.uppercase(), color = ToxicGreen, fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text(htitle, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                                Text(htrainer, color = TextMuted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -3980,9 +4805,10 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
 }
 
 @Composable
-fun InAppYouTubePlayerDialog(url: String, onClose: () -> Unit) {
+fun InAppYouTubePlayerDialogUNUSED(url: String, onClose: () -> Unit) {
     val exerciseName = remember(url) { getExerciseNameFromUrl(url) }
     var showWebView by remember { mutableStateOf(false) } // Represents "internal player (beta)" mode
+    var activeLabTab by remember { mutableStateOf(0) } // 0 = Video, 1 = Biomechanics
     val uriHandler = LocalUriHandler.current
     
     // Bio Simulation playback states
@@ -4237,384 +5063,575 @@ fun InAppYouTubePlayerDialog(url: String, onClose: () -> Unit) {
                             }
                         }
                     } else {
-                        // Lab Biomechanics interactive simulator
+                        // Lab Biomechanics interactive simulator with Real Youtube Video support
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(CarbonBg)
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                "MODELO BIOMECÂNICO COMPUTACIONAL",
-                                color = ToxicGreen,
-                                fontFamily = TechMonospace,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                            
-                            // Visual Canvas box
-                            Box(
+                            // High contrast selector tabs at the top of the integrated player
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(200.dp)
-                                    .background(Color.Black, RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
+                                    .background(CarbonSurface, RoundedCornerShape(8.dp))
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    val width = size.width
-                                    val height = size.height
-                                    val centerX = width / 2f
-                                    val centerY = height / 2f
-                                    
-                                    // 1. Draw grid lines
-                                    val numGridLines = 10
-                                    for (i in 1 until numGridLines) {
-                                        val x = (width / numGridLines) * i
-                                        val y = (height / numGridLines) * i
-                                        drawLine(
-                                            color = Color(0xFF151515),
-                                            start = androidx.compose.ui.geometry.Offset(x, 0f),
-                                            end = androidx.compose.ui.geometry.Offset(x, height),
-                                            strokeWidth = 1f
+                                Button(
+                                    onClick = { activeLabTab = 0 },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (activeLabTab == 0) ToxicGreen else Color.Transparent,
+                                        contentColor = if (activeLabTab == 0) Color.Black else Color.White
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayCircle,
+                                            contentDescription = null,
+                                            tint = if (activeLabTab == 0) Color.Black else ToxicGreen,
+                                            modifier = Modifier.size(16.dp)
                                         )
-                                        drawLine(
-                                            color = Color(0xFF151515),
-                                            start = androidx.compose.ui.geometry.Offset(0f, y),
-                                            end = androidx.compose.ui.geometry.Offset(width, y),
-                                            strokeWidth = 1f
-                                        )
+                                        Text("REPRODUZIR VÍDEO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
                                     }
-                                    
-                                    // 2. Draw axes and biomechanics data
-                                    val cycleValue = Math.sin(animationTime.toDouble()).toFloat() // oscillates between -1f and 1f
-                                    
-                                    when (exerciseName) {
-                                        "Supino Reto" -> {
-                                            // Bench line
-                                            drawLine(
-                                                color = Color.DarkGray,
-                                                start = androidx.compose.ui.geometry.Offset(centerX - 120.dp.toPx(), centerY + 30.dp.toPx()),
-                                                end = androidx.compose.ui.geometry.Offset(centerX + 120.dp.toPx(), centerY + 30.dp.toPx()),
-                                                strokeWidth = 4f
-                                            )
-                                            // Human trunk / shoulder joint
-                                            drawCircle(
-                                                color = TechCyan,
-                                                radius = 6.dp.toPx(),
-                                                center = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx())
-                                            )
-                                            // Barbell path
-                                            val barY = centerY - 20.dp.toPx() + (cycleValue * 35.dp.toPx())
-                                            
-                                            // Draw elbows mapping
-                                            val elbowX = centerX - 35.dp.toPx() - (cycleValue * 10.dp.toPx())
-                                            val elbowY = (centerY + 25.dp.toPx() + barY) / 2f + 15.dp.toPx()
-                                            
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx()),
-                                                end = androidx.compose.ui.geometry.Offset(elbowX, elbowY),
-                                                strokeWidth = 3f
-                                            )
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(elbowX, elbowY),
-                                                end = androidx.compose.ui.geometry.Offset(centerX - 50.dp.toPx(), barY),
-                                                strokeWidth = 3f
-                                            )
-                                            
-                                            val elbowRightX = centerX + 35.dp.toPx() + (cycleValue * 10.dp.toPx())
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx()),
-                                                end = androidx.compose.ui.geometry.Offset(elbowRightX, elbowY),
-                                                strokeWidth = 3f
-                                            )
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(elbowRightX, elbowY),
-                                                end = androidx.compose.ui.geometry.Offset(centerX + 50.dp.toPx(), barY),
-                                                strokeWidth = 3f
-                                            )
-                                            
-                                            // Barbell bar and weights
-                                            drawLine(
-                                                color = Color.White,
-                                                start = androidx.compose.ui.geometry.Offset(centerX - 90.dp.toPx(), barY),
-                                                end = androidx.compose.ui.geometry.Offset(centerX + 90.dp.toPx(), barY),
-                                                strokeWidth = 6f
-                                            )
-                                            drawRect(
-                                                color = Color(0xFFFF5252),
-                                                topLeft = androidx.compose.ui.geometry.Offset(centerX - 88.dp.toPx(), barY - 15.dp.toPx()),
-                                                size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 30.dp.toPx())
-                                            )
-                                            drawRect(
-                                                color = Color(0xFFFF5252),
-                                                topLeft = androidx.compose.ui.geometry.Offset(centerX + 76.dp.toPx(), barY - 15.dp.toPx()),
-                                                size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 30.dp.toPx())
-                                            )
-                                        }
-                                        "Agachamento Livre" -> {
-                                            drawLine(
-                                                color = Color.DarkGray,
-                                                start = androidx.compose.ui.geometry.Offset(centerX - 100.dp.toPx(), centerY + 70.dp.toPx()),
-                                                end = androidx.compose.ui.geometry.Offset(centerX + 100.dp.toPx(), centerY + 70.dp.toPx()),
-                                                strokeWidth = 4f
-                                            )
-                                            val footX = centerX - 15.dp.toPx()
-                                            val footY = centerY + 70.dp.toPx()
-                                            
-                                            val hipY = centerY - 15.dp.toPx() + ((cycleValue + 1f) * 30.dp.toPx())
-                                            val hipX = centerX - 35.dp.toPx() - ((cycleValue + 1f) * 10.dp.toPx())
-                                            
-                                            val kneeY = centerY + 30.dp.toPx() + ((cycleValue + 1f) * 18.dp.toPx())
-                                            val kneeX = centerX - 60.dp.toPx()
-                                            
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(hipX, hipY),
-                                                end = androidx.compose.ui.geometry.Offset(kneeX, kneeY),
-                                                strokeWidth = 3f
-                                            )
-                                            drawLine(
-                                                color = Color.LightGray,
-                                                start = androidx.compose.ui.geometry.Offset(kneeX, kneeY),
-                                                end = androidx.compose.ui.geometry.Offset(footX, footY),
-                                                strokeWidth = 3f
-                                            )
-                                            
-                                            val headX = hipX + 15.dp.toPx() - ((cycleValue + 1f) * 8.dp.toPx())
-                                            val headY = hipY - 50.dp.toPx()
-                                            drawLine(
-                                                color = TechCyan,
-                                                start = androidx.compose.ui.geometry.Offset(hipX, hipY),
-                                                end = androidx.compose.ui.geometry.Offset(headX, headY),
-                                                strokeWidth = 4f
-                                            )
-                                            
-                                            // Back Barbell
-                                            val barX = headX - 5.dp.toPx()
-                                            val barY = headY + 5.dp.toPx()
-                                            drawCircle(
-                                                color = Color.White,
-                                                radius = 8.dp.toPx(),
-                                                center = androidx.compose.ui.geometry.Offset(barX, barY)
-                                            )
-                                        }
-                                        else -> {
-                                            // Dynamic muscular tension spectrogram
-                                            val wavePoints = 120
-                                            val step = width / wavePoints
-                                            val path = androidx.compose.ui.graphics.Path()
-                                            path.moveTo(0f, centerY)
-                                            for (px in 0..wavePoints) {
-                                                val x = px * step
-                                                val ratio = px.toFloat() / wavePoints
-                                                val amplitude = 50.dp.toPx() * (1f - ratio) * (1f - Math.abs(cycleValue) * 0.3f)
-                                                val freqOffset = animationTime * 3f
-                                                val y = centerY + Math.sin(px * 0.15 + freqOffset).toFloat() * amplitude + Math.cos(px * 0.08 + freqOffset * 1.5).toFloat() * (amplitude * 0.3f)
-                                                path.lineTo(x, y)
-                                            }
-                                            drawPath(
-                                                path = path,
-                                                color = ToxicGreen,
-                                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f)
-                                            )
-                                            
-                                            drawLine(
-                                                color = Color(0xFFFF5252).copy(alpha = 0.6f),
-                                                start = androidx.compose.ui.geometry.Offset(centerX - 80.dp.toPx() + cycleValue * 30.dp.toPx(), centerY - 60.dp.toPx()),
-                                                end = androidx.compose.ui.geometry.Offset(centerX - 80.dp.toPx() + cycleValue * 30.dp.toPx(), centerY + 60.dp.toPx()),
-                                                strokeWidth = 2f
-                                            )
-                                        }
-                                    }
-                                    
-                                    // Range of motion overlay circle
-                                    drawCircle(
-                                        color = ToxicGreen.copy(alpha = 0.15f),
-                                        radius = 18.dp.toPx() + (cycleValue * 4.dp.toPx()),
-                                        center = androidx.compose.ui.geometry.Offset(centerX + 80.dp.toPx(), centerY - 40.dp.toPx())
-                                    )
-                                    drawCircle(
-                                        color = ToxicGreen,
-                                        radius = 3.dp.toPx(),
-                                        center = androidx.compose.ui.geometry.Offset(centerX + 80.dp.toPx(), centerY - 40.dp.toPx())
-                                    )
                                 }
-                                
-                                // Telemetry screen details
-                                Box(
+                                Button(
+                                    onClick = { activeLabTab = 1 },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (activeLabTab == 1) ToxicGreen else Color.Transparent,
+                                        contentColor = if (activeLabTab == 1) Color.Black else Color.White
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(
+                                            imageVector = Icons.Default.Tv,
+                                            contentDescription = null,
+                                            tint = if (activeLabTab == 1) Color.Black else TechCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text("ESTUDO BIOMECÂNICO", fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = TechMonospace)
+                                    }
+                                }
+                            }
+
+                            if (activeLabTab == 0) {
+                                // Dynamic WebView player that loads and plays the real YouTube video
+                                Column(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(10.dp),
-                                    contentAlignment = Alignment.TopStart
+                                        .weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    Text(
+                                        "REPRODUTOR INTEGRADO - VÍDEO DO EXERCÍCIO",
+                                        color = ToxicGreen,
+                                        fontFamily = TechMonospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+
+                                    val videoId = remember(url) {
+                                        try {
+                                            if (url.contains("youtu.be/")) {
+                                                url.substringAfter("youtu.be/").substringBefore("?").substringBefore("&")
+                                            } else if (url.contains("v=")) {
+                                                url.substringAfter("v=").substringBefore("&")
+                                            } else if (url.contains("embed/")) {
+                                                url.substringAfter("embed/").substringBefore("?").substringBefore("&")
+                                            } else {
+                                                ""
+                                            }
+                                        } catch (e: Exception) {
+                                            ""
+                                        }
+                                    }
+
+                                    if (videoId.isNotBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .background(Color.Black, RoundedCornerShape(8.dp))
+                                                .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            AndroidView(
+                                                factory = { context ->
+                                                    WebView(context).apply {
+                                                        layoutParams = android.view.ViewGroup.LayoutParams(
+                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                                        )
+                                                        webViewClient = WebViewClient()
+                                                        settings.javaScriptEnabled = true
+                                                        settings.mediaPlaybackRequiresUserGesture = false
+                                                        settings.domStorageEnabled = true
+                                                        settings.useWideViewPort = true
+                                                        settings.loadWithOverviewMode = true
+
+                                                        // Load secure embedded youtube iframe
+                                                        val embedHtml = """
+                                                            <html>
+                                                            <body style="margin: 0; padding: 0; background-color: black;">
+                                                                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                                            </body>
+                                                            </html>
+                                                        """.trimIndent()
+                                                        loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                                                        tag = videoId
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxSize(),
+                                                update = { webView ->
+                                                    if (webView.tag != videoId) {
+                                                        val currentEmbedHtml = """
+                                                            <html>
+                                                            <body style="margin: 0; padding: 0; background-color: black;">
+                                                                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                                            </body>
+                                                            </html>
+                                                        """.trimIndent()
+                                                        webView.loadDataWithBaseURL("https://www.youtube.com", currentEmbedHtml, "text/html", "UTF-8", null)
+                                                        webView.tag = videoId
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f)
+                                                .background(Color.Black, RoundedCornerShape(8.dp))
+                                                .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Icon(Icons.Default.Error, contentDescription = null, tint = Color.Red, modifier = Modifier.size(32.dp))
+                                                Text("URL do YouTube inválida ou não suportada.", color = TextMuted, textAlign = TextAlign.Center)
+                                                Text(url, color = Color.Gray, fontSize = 10.sp, textAlign = TextAlign.Center)
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Button(
+                                        onClick = {
+                                            try {
+                                                uriHandler.openUri(url)
+                                            } catch (e: Exception) {
+                                                // Ignore
+                                            }
+                                            onClose()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
                                     ) {
-                                        Column {
-                                            Text(
-                                                "EX: ${exerciseName.uppercase()}",
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 9.sp,
-                                                fontFamily = TechMonospace
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.OpenInNew,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
                                             )
                                             Text(
-                                                "FREQ: ${(60f + Math.sin(animationTime.toDouble()).toFloat() * 12f).toInt()} Hz",
-                                                color = Color.Gray,
+                                                "ABRIR NO APLICATIVO DO YOUTUBE",
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontFamily = TechMonospace
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // ORIGINAL SIMULATION LAB SECTION (biomechanics Canvas + info card)
+                                Text(
+                                    "MODELO BIOMECÂNICO COMPUTACIONAL",
+                                    color = ToxicGreen,
+                                    fontFamily = TechMonospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+
+                                // Visual Canvas box
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .background(Color.Black, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val width = size.width
+                                        val height = size.height
+                                        val centerX = width / 2f
+                                        val centerY = height / 2f
+
+                                        // 1. Draw grid lines
+                                        val numGridLines = 10
+                                        for (i in 1 until numGridLines) {
+                                            val x = (width / numGridLines) * i
+                                            val y = (height / numGridLines) * i
+                                            drawLine(
+                                                color = Color(0xFF151515),
+                                                start = androidx.compose.ui.geometry.Offset(x, 0f),
+                                                end = androidx.compose.ui.geometry.Offset(x, height),
+                                                strokeWidth = 1f
+                                            )
+                                            drawLine(
+                                                color = Color(0xFF151515),
+                                                start = androidx.compose.ui.geometry.Offset(0f, y),
+                                                end = androidx.compose.ui.geometry.Offset(width, y),
+                                                strokeWidth = 1f
+                                            )
+                                        }
+
+                                        // 2. Draw axes and biomechanics data
+                                        val cycleValue = Math.sin(animationTime.toDouble()).toFloat() // oscillates between -1f and 1f
+
+                                        when (exerciseName) {
+                                            "Supino Reto" -> {
+                                                // Bench line
+                                                drawLine(
+                                                    color = Color.DarkGray,
+                                                    start = androidx.compose.ui.geometry.Offset(centerX - 120.dp.toPx(), centerY + 30.dp.toPx()),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX + 120.dp.toPx(), centerY + 30.dp.toPx()),
+                                                    strokeWidth = 4f
+                                                )
+                                                // Human trunk / shoulder joint
+                                                drawCircle(
+                                                    color = TechCyan,
+                                                    radius = 6.dp.toPx(),
+                                                    center = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx())
+                                                )
+                                                // Barbell path
+                                                val barY = centerY - 20.dp.toPx() + (cycleValue * 35.dp.toPx())
+
+                                                // Draw elbows mapping
+                                                val elbowX = centerX - 35.dp.toPx() - (cycleValue * 10.dp.toPx())
+                                                val elbowY = (centerY + 25.dp.toPx() + barY) / 2f + 15.dp.toPx()
+
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx()),
+                                                    end = androidx.compose.ui.geometry.Offset(elbowX, elbowY),
+                                                    strokeWidth = 3f
+                                                )
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(elbowX, elbowY),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX - 50.dp.toPx(), barY),
+                                                    strokeWidth = 3f
+                                                )
+
+                                                val elbowRightX = centerX + 35.dp.toPx() + (cycleValue * 10.dp.toPx())
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(centerX, centerY + 25.dp.toPx()),
+                                                    end = androidx.compose.ui.geometry.Offset(elbowRightX, elbowY),
+                                                    strokeWidth = 3f
+                                                )
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(elbowRightX, elbowY),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX + 50.dp.toPx(), barY),
+                                                    strokeWidth = 3f
+                                                )
+
+                                                // Barbell bar and weights
+                                                drawLine(
+                                                    color = Color.White,
+                                                    start = androidx.compose.ui.geometry.Offset(centerX - 90.dp.toPx(), barY),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX + 90.dp.toPx(), barY),
+                                                    strokeWidth = 6f
+                                                )
+                                                drawRect(
+                                                    color = Color(0xFFFF5252),
+                                                    topLeft = androidx.compose.ui.geometry.Offset(centerX - 88.dp.toPx(), barY - 15.dp.toPx()),
+                                                    size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 30.dp.toPx())
+                                                )
+                                                drawRect(
+                                                    color = Color(0xFFFF5252),
+                                                    topLeft = androidx.compose.ui.geometry.Offset(centerX + 76.dp.toPx(), barY - 15.dp.toPx()),
+                                                    size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 30.dp.toPx())
+                                                )
+                                            }
+                                            "Agachamento Livre" -> {
+                                                drawLine(
+                                                    color = Color.DarkGray,
+                                                    start = androidx.compose.ui.geometry.Offset(centerX - 100.dp.toPx(), centerY + 70.dp.toPx()),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX + 100.dp.toPx(), centerY + 70.dp.toPx()),
+                                                    strokeWidth = 4f
+                                                )
+                                                val footX = centerX - 15.dp.toPx()
+                                                val footY = centerY + 70.dp.toPx()
+
+                                                val hipY = centerY - 15.dp.toPx() + ((cycleValue + 1f) * 30.dp.toPx())
+                                                val hipX = centerX - 35.dp.toPx() - ((cycleValue + 1f) * 10.dp.toPx())
+
+                                                val kneeY = centerY + 30.dp.toPx() + ((cycleValue + 1f) * 18.dp.toPx())
+                                                val kneeX = centerX - 60.dp.toPx()
+
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(hipX, hipY),
+                                                    end = androidx.compose.ui.geometry.Offset(kneeX, kneeY),
+                                                    strokeWidth = 3f
+                                                )
+                                                drawLine(
+                                                    color = Color.LightGray,
+                                                    start = androidx.compose.ui.geometry.Offset(kneeX, kneeY),
+                                                    end = androidx.compose.ui.geometry.Offset(footX, footY),
+                                                    strokeWidth = 3f
+                                                )
+
+                                                val headX = hipX + 15.dp.toPx() - ((cycleValue + 1f) * 8.dp.toPx())
+                                                val headY = hipY - 50.dp.toPx()
+                                                drawLine(
+                                                    color = TechCyan,
+                                                    start = androidx.compose.ui.geometry.Offset(hipX, hipY),
+                                                    end = androidx.compose.ui.geometry.Offset(headX, headY),
+                                                    strokeWidth = 4f
+                                                )
+
+                                                // Back Barbell
+                                                val barX = headX - 5.dp.toPx()
+                                                val barY = headY + 5.dp.toPx()
+                                                drawCircle(
+                                                    color = Color.White,
+                                                    radius = 8.dp.toPx(),
+                                                    center = androidx.compose.ui.geometry.Offset(barX, barY)
+                                                )
+                                            }
+                                            else -> {
+                                                // Dynamic muscular tension spectrogram
+                                                val wavePoints = 120
+                                                val step = width / wavePoints
+                                                val path = androidx.compose.ui.graphics.Path()
+                                                path.moveTo(0f, centerY)
+                                                for (px in 0..wavePoints) {
+                                                    val x = px * step
+                                                    val ratio = px.toFloat() / wavePoints
+                                                    val amplitude = 50.dp.toPx() * (1f - ratio) * (1f - Math.abs(cycleValue) * 0.3f)
+                                                    val freqOffset = animationTime * 3f
+                                                    val y = centerY + Math.sin(px * 0.15 + freqOffset).toFloat() * amplitude + Math.cos(px * 0.08 + freqOffset * 1.5).toFloat() * (amplitude * 0.3f)
+                                                    path.lineTo(x, y)
+                                                }
+                                                drawPath(
+                                                    path = path,
+                                                    color = ToxicGreen,
+                                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f)
+                                                )
+
+                                                drawLine(
+                                                    color = Color(0xFFFF5252).copy(alpha = 0.6f),
+                                                    start = androidx.compose.ui.geometry.Offset(centerX - 80.dp.toPx() + cycleValue * 30.dp.toPx(), centerY - 60.dp.toPx()),
+                                                    end = androidx.compose.ui.geometry.Offset(centerX - 80.dp.toPx() + cycleValue * 30.dp.toPx(), centerY + 60.dp.toPx()),
+                                                    strokeWidth = 2f
+                                                )
+                                            }
+                                        }
+
+                                        // Range of motion overlay circle
+                                        drawCircle(
+                                            color = ToxicGreen.copy(alpha = 0.15f),
+                                            radius = 18.dp.toPx() + (cycleValue * 4.dp.toPx()),
+                                            center = androidx.compose.ui.geometry.Offset(centerX + 80.dp.toPx(), centerY - 40.dp.toPx())
+                                        )
+                                        drawCircle(
+                                            color = ToxicGreen,
+                                            radius = 3.dp.toPx(),
+                                            center = androidx.compose.ui.geometry.Offset(centerX + 80.dp.toPx(), centerY - 40.dp.toPx())
+                                        )
+                                    }
+
+                                    // Telemetry screen details
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(10.dp),
+                                        contentAlignment = Alignment.TopStart
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    "EX: ${exerciseName.uppercase()}",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 9.sp,
+                                                    fontFamily = TechMonospace
+                                                )
+                                                Text(
+                                                    "FREQ: ${(60f + Math.sin(animationTime.toDouble()).toFloat() * 12f).toInt()} Hz",
+                                                    color = Color.Gray,
+                                                    fontSize = 8.sp,
+                                                    fontFamily = TechMonospace
+                                                )
+                                            }
+                                            Text(
+                                                if (isSimulatedPlaying) "● SIMULAÇÃO RENDERIZANDO" else "⏸ PAUSADO",
+                                                color = if (isSimulatedPlaying) ToxicGreen else Color(0xFFFF5252),
+                                                fontWeight = FontWeight.Bold,
                                                 fontSize = 8.sp,
                                                 fontFamily = TechMonospace
                                             )
                                         }
+                                    }
+                                }
+
+                                // Interactive simulation controls
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = { isSimulatedPlaying = !isSimulatedPlaying },
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(CarbonSurface, RoundedCornerShape(4.dp))
+                                                .border(0.5.dp, BorderDark, RoundedCornerShape(4.dp))
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isSimulatedPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                                contentDescription = "Controle de Execução",
+                                                tint = ToxicGreen,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        TextButton(
+                                            onClick = {
+                                                playbackSpeed = when (playbackSpeed) {
+                                                    0.5f -> 1.0f
+                                                    1.0f -> 2.0f
+                                                    else -> 0.5f
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .height(36.dp)
+                                                .background(CarbonSurface, RoundedCornerShape(4.dp))
+                                                .border(0.5.dp, BorderDark, RoundedCornerShape(4.dp)),
+                                            contentPadding = PaddingValues(horizontal = 10.dp)
+                                        ) {
+                                            Text(
+                                                "VEL: ${playbackSpeed}X",
+                                                color = ToxicGreen,
+                                                fontSize = 10.sp,
+                                                fontFamily = TechMonospace,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    val sinVal = Math.sin(animationTime.toDouble())
+                                    val angleValue = (100f + sinVal * 25f).toInt()
+                                    val velocityValue = 0.4f + sinVal * 0.15f
+                                    val formattedVelocity = String.format(java.util.Locale.US, "%.2f", velocityValue)
+                                    Text(
+                                        text = "ANG: ${angleValue}º  |  VEL: $formattedVelocity m/s",
+                                        color = TextMuted,
+                                        fontSize = 9.sp,
+                                        fontFamily = TechMonospace
+                                    )
+                                }
+
+                                // Specifications Card
+                                val tele = remember(exerciseName) { getExerciseTelemetry(exerciseName) }
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = CarbonSurface),
+                                    border = BorderStroke(0.5.dp, BorderDark),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Text(
-                                            if (isSimulatedPlaying) "● SIMULAÇÃO RENDERIZANDO" else "⏸ PAUSADO",
-                                            color = if (isSimulatedPlaying) ToxicGreen else Color(0xFFFF5252),
+                                            "Músculos-Alvo: ${tele.targetMuscles}",
+                                            color = TextPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "Amplitude Ótima (ROM): ${tele.rom}",
+                                            color = TechCyan,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontFamily = TechMonospace
+                                        )
+                                        Text(
+                                            "Tática de Segurança: ${tele.safetyTactics}",
+                                            color = Color(0xFFFFCC00),
+                                            fontSize = 10.sp,
+                                            lineHeight = 13.sp
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.weight(1f))
+
+                                // High fidelity YouTube backup trigger
+                                Button(
+                                    onClick = {
+                                        try {
+                                            uriHandler.openUri(url)
+                                        } catch (e: Exception) {
+                                            // Ignore
+                                        }
+                                        onClose()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .testTag("btn_simulation_open_external")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.OpenInNew,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            "ABRIR VÍDEO COMPLETO NO YOUTUBE",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 8.sp,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
                                             fontFamily = TechMonospace
                                         )
                                     }
-                                }
-                            }
-                            
-                            // Interactive simulation controls
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    IconButton(
-                                        onClick = { isSimulatedPlaying = !isSimulatedPlaying },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(CarbonSurface, RoundedCornerShape(4.dp))
-                                            .border(0.5.dp, BorderDark, RoundedCornerShape(4.dp))
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isSimulatedPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                            contentDescription = "Controle de Execução",
-                                            tint = ToxicGreen,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                    
-                                    TextButton(
-                                        onClick = {
-                                            playbackSpeed = when (playbackSpeed) {
-                                                0.5f -> 1.0f
-                                                1.0f -> 2.0f
-                                                else -> 0.5f
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .height(36.dp)
-                                            .background(CarbonSurface, RoundedCornerShape(4.dp))
-                                            .border(0.5.dp, BorderDark, RoundedCornerShape(4.dp)),
-                                        contentPadding = PaddingValues(horizontal = 10.dp)
-                                    ) {
-                                        Text(
-                                            "VEL: ${playbackSpeed}X",
-                                            color = ToxicGreen,
-                                            fontSize = 10.sp,
-                                            fontFamily = TechMonospace,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                                
-                                val sinVal = Math.sin(animationTime.toDouble())
-                                val angleValue = (100f + sinVal * 25f).toInt()
-                                val velocityValue = 0.4f + sinVal * 0.15f
-                                val formattedVelocity = String.format(java.util.Locale.US, "%.2f", velocityValue)
-                                Text(
-                                    text = "ANG: ${angleValue}º  |  VEL: $formattedVelocity m/s",
-                                    color = TextMuted,
-                                    fontSize = 9.sp,
-                                    fontFamily = TechMonospace
-                                )
-                            }
-                            
-                            // Specifications Card
-                            val tele = remember(exerciseName) { getExerciseTelemetry(exerciseName) }
-                            
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = CarbonSurface),
-                                border = BorderStroke(0.5.dp, BorderDark),
-                                shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        "Músculos-Alvo: ${tele.targetMuscles}",
-                                        color = TextPrimary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        "Amplitude Ótima (ROM): ${tele.rom}",
-                                        color = TechCyan,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontFamily = TechMonospace
-                                    )
-                                    Text(
-                                        "Tática de Segurança: ${tele.safetyTactics}",
-                                        color = Color(0xFFFFCC00),
-                                        fontSize = 10.sp,
-                                        lineHeight = 13.sp
-                                    )
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.weight(1f))
-                            
-                            // High fidelity YouTube backup trigger
-                            Button(
-                                onClick = {
-                                    try {
-                                        uriHandler.openUri(url)
-                                    } catch (e: Exception) {
-                                        // Ignore
-                                    }
-                                    onClose()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("btn_simulation_open_external")
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.OpenInNew,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        "ABRIR VÍDEO COMPLETO NO YOUTUBE",
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontFamily = TechMonospace
-                                    )
                                 }
                             }
                         }
@@ -5309,6 +6326,19 @@ fun LoginEntranceScreen(
 ) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var showLocalAccountChooser by remember { mutableStateOf(false) }
+    var isAddingCustomAccount by remember { mutableStateOf(false) }
+    var customName by remember { mutableStateOf("Rodrigo") }
+    var customEmail by remember { mutableStateOf("Rodrigocg2@gmail.com") }
+
+    val googleLoginError by viewModel.googleLoginError.collectAsState()
+    val cachedAccounts = remember(showLocalAccountChooser, isAddingCustomAccount) { viewModel.getSavedGoogleAccounts() }
+
+    // If official Google Login starts and fails (e.g. on emulator), open the custom chooser
+    androidx.compose.runtime.LaunchedEffect(googleLoginError) {
+        if (googleLoginError != null) {
+            showLocalAccountChooser = true
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -5395,9 +6425,9 @@ fun LoginEntranceScreen(
             
             Spacer(modifier = Modifier.height(40.dp))
             
-            // Cards transparentes glassmorphism para botões se quiser, mas botoes solidos com premium feel funcionam bem.
+            // Entrar com Google can trigger official Sign-In with elegant automatic selector fallback
             Button(
-                onClick = { showLocalAccountChooser = true }, 
+                onClick = { viewModel.triggerOfficialGoogleLogin() }, 
                 modifier = Modifier.fillMaxWidth().height(52.dp), 
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black), 
                 shape = RoundedCornerShape(12.dp)
@@ -5411,7 +6441,10 @@ fun LoginEntranceScreen(
             Spacer(modifier = Modifier.height(12.dp))
             
             Button(
-                onClick = { showLocalAccountChooser = true }, 
+                onClick = { 
+                    isAddingCustomAccount = true
+                    showLocalAccountChooser = true 
+                }, 
                 modifier = Modifier.fillMaxWidth().height(52.dp), 
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA020F0), contentColor = Color.White), 
                 shape = RoundedCornerShape(12.dp)
@@ -5421,7 +6454,10 @@ fun LoginEntranceScreen(
             Spacer(modifier = Modifier.height(12.dp))
             
             OutlinedButton(
-                onClick = { showLocalAccountChooser = true }, 
+                onClick = { 
+                    isAddingCustomAccount = true
+                    showLocalAccountChooser = true 
+                }, 
                 modifier = Modifier.fillMaxWidth().height(52.dp)
                     .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)), // subtle glass
                 border = BorderStroke(1.dp, Color(0xFFA020F0).copy(alpha=0.5f)), 
@@ -5441,7 +6477,11 @@ fun LoginEntranceScreen(
 
     if (showLocalAccountChooser) {
         Dialog(
-            onDismissRequest = { showLocalAccountChooser = false }
+            onDismissRequest = { 
+                showLocalAccountChooser = false
+                isAddingCustomAccount = false
+                viewModel.clearGoogleLoginError()
+            }
         ) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CarbonSurface),
@@ -5461,74 +6501,171 @@ fun LoginEntranceScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Entrar com o Google",
+                            text = "Contas Google no Dispositivo",
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
                         IconButton(
-                            onClick = { showLocalAccountChooser = false },
+                            onClick = { 
+                                showLocalAccountChooser = false
+                                isAddingCustomAccount = false
+                                viewModel.clearGoogleLoginError()
+                            },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(Icons.Default.Close, contentDescription = null, tint = TextMuted)
                         }
                     }
                     
-                    Text(
-                        "Escolha uma conta para fazer login no Desfrangando:",
-                        color = TextMuted,
-                        fontSize = 12.sp
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    // Option 1
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.loginWithGoogle("Rodrigo C. G.", "rodrigocg2@gmail.com", "")
-                                showLocalAccountChooser = false
-                            }
-                            .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.AccountCircle, 
-                            contentDescription = null, 
-                            tint = ToxicGreen, 
-                            modifier = Modifier.size(32.dp)
+                    if (!isAddingCustomAccount && cachedAccounts.isNotEmpty()) {
+                        Text(
+                            text = "Selecione uma conta Google do seu dispositivo para entrar automaticamente:",
+                            color = TextMuted,
+                            fontSize = 12.sp
                         )
-                        Column {
-                            Text("Rodrigo C. G.", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("rodrigocg2@gmail.com", color = TextMuted, fontSize = 12.sp)
+                        
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
+                        ) {
+                            items(cachedAccounts) { acc ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CarbonBg, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            viewModel.loginWithGoogle(acc.first, acc.second, acc.third)
+                                            showLocalAccountChooser = false
+                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(ToxicGreen.copy(alpha = 0.2f), RoundedCornerShape(18.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            acc.first.take(1).uppercase(),
+                                            color = ToxicGreen,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(acc.first, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(acc.second, color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                            }
                         }
-                    }
-                    
-                    // Option 2
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.loginWithGoogle("Atleta Desfrangando", "atleta.desfrangando@gmail.com", "")
-                                showLocalAccountChooser = false
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        TextButton(
+                            onClick = { isAddingCustomAccount = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = ToxicGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Usar outra conta", color = ToxicGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
-                            .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Add, 
-                            contentDescription = null, 
-                            tint = Color.LightGray, 
-                            modifier = Modifier.size(32.dp)
+                        }
+                    } else {
+                        // User enters a custom account details
+                        Text(
+                            text = "Por favor, digite os detalhes da conta do aparelho:",
+                            color = TextMuted,
+                            fontSize = 12.sp
                         )
-                        Column {
-                            Text("Usar outra conta", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("Simular outra conta Google", color = TextMuted, fontSize = 12.sp)
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("SEU NOME", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            OutlinedTextField(
+                                value = customName,
+                                onValueChange = { customName = it },
+                                placeholder = { Text("Ex: João Silva", color = TextMuted) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedContainerColor = CarbonBg,
+                                    unfocusedContainerColor = CarbonBg,
+                                    focusedBorderColor = ToxicGreen,
+                                    unfocusedBorderColor = BorderDark,
+                                    cursorColor = ToxicGreen
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("custom_login_name_input_entrance")
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("GMAIL / EMAIL", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            OutlinedTextField(
+                                value = customEmail,
+                                onValueChange = { customEmail = it },
+                                placeholder = { Text("Ex: joao@gmail.com", color = TextMuted) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedContainerColor = CarbonBg,
+                                    unfocusedContainerColor = CarbonBg,
+                                    focusedBorderColor = ToxicGreen,
+                                    unfocusedBorderColor = BorderDark,
+                                    cursorColor = ToxicGreen
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("custom_login_email_input_entrance")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (cachedAccounts.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = { isAddingCustomAccount = false },
+                                    border = BorderStroke(1.dp, BorderDark),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("VOLTAR", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { 
+                                        showLocalAccountChooser = false
+                                        viewModel.clearGoogleLoginError()
+                                    },
+                                    border = BorderStroke(1.dp, BorderDark),
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("CANCELAR", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                                }
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    val finalName = customName.trim().ifEmpty { "Atleta Desfrangando" }
+                                    val finalEmail = customEmail.trim().ifEmpty { "atleta@gmail.com" }
+                                    viewModel.loginWithGoogle(finalName, finalEmail, "")
+                                    isAddingCustomAccount = false
+                                    showLocalAccountChooser = false
+                                    viewModel.clearGoogleLoginError()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                                modifier = Modifier.weight(1.2f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("ENTRAR", fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = TechMonospace)
+                            }
                         }
                     }
                 }

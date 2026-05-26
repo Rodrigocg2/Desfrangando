@@ -12,7 +12,7 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.desfrangando.qyfmxw"
-    minSdk = 21
+    minSdk = 23
     targetSdk = 34
     versionCode = 1
     versionName = "1.0"
@@ -109,6 +109,8 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  implementation(libs.firebase.auth)
+  implementation(libs.play.services.auth)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

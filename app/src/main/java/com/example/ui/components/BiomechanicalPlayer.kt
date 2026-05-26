@@ -42,7 +42,7 @@ fun BiomechanicalPlayer(
     val baseDuration = 4000
     val duration = (baseDuration / playbackSpeed.coerceAtLeast(0.1f)).toInt().coerceIn(200, 20000)
     
-    val animatedProgress by infiniteTransition.animateFloat(
+    val animatedProgressState = infiniteTransition.animateFloat(
         initialValue = 0.0f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
@@ -51,8 +51,6 @@ fun BiomechanicalPlayer(
         ),
         label = "motion"
     )
-
-    val animationProgress = if (isPlaying) animatedProgress else 0.25f
 
     val textMeasurer = rememberTextMeasurer()
 
@@ -64,6 +62,8 @@ fun BiomechanicalPlayer(
             .padding(8.dp)
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
+            val animationProgress = if (isPlaying) animatedProgressState.value else 0.25f
+            
             val canvasWidth = size.width
             val canvasHeight = size.height
             val centerX = canvasWidth / 2f
