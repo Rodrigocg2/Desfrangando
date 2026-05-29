@@ -2040,14 +2040,28 @@ fun VideoExecutionEncyclopediaScreen(viewModel: WorkoutViewModel) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Selecione o Exercício:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Row(
+                var searchFilter by remember { mutableStateOf("") }
+                androidx.compose.material3.OutlinedTextField(
+                    value = searchFilter,
+                    onValueChange = { searchFilter = it },
+                    label = { Text("Buscar...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val filteredExs = remember(searchFilter, viewModel.repository.referenceExercises) {
+                    if (searchFilter.isBlank()) {
+                        viewModel.repository.referenceExercises.take(30)
+                    } else {
+                        viewModel.repository.referenceExercises.filter { it.name.contains(searchFilter, true) }.take(30)
+                    }
+                }
+                LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
                         .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    viewModel.repository.referenceExercises.forEach { ex ->
+                    items(filteredExs, key = { it.id }) { ex ->
                         val selected = ex.id == refId
                         Box(
                             modifier = Modifier
@@ -2250,8 +2264,9 @@ fun WorkoutHistoryLogsScreen(viewModel: WorkoutViewModel) {
             }
 
             // History rows
+            val displayHistory = remember(history) { history.take(30) }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(history) { log ->
+                items(displayHistory, key = { it.id }) { log ->
                     val relatedWorkout = savedWorkouts.find { it.id == log.workoutId }
                     val musclePercents = remember(log, relatedWorkout) {
                         val map = mutableMapOf<String, Int>()
@@ -4391,48 +4406,32 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
                         }
                     }
                     
-                    // Embedded WebView Video Player
+                    // Embedded Player Block
                     Box(modifier = Modifier.weight(1f)) {
-                        AndroidView(
-                            factory = { context ->
-                                WebView(context).apply {
-                                    layoutParams = android.view.ViewGroup.LayoutParams(
-                                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                    webViewClient = WebViewClient()
-                                    settings.javaScriptEnabled = true
-                                    settings.mediaPlaybackRequiresUserGesture = false
-                                    settings.domStorageEnabled = true
-                                    settings.useWideViewPort = true
-                                    settings.loadWithOverviewMode = true
-                                    
-                                    val embedHtml = """
-                                        <html>
-                                        <body style="margin: 0; padding: 0; background-color: black;">
-                                            <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                        </body>
-                                        </html>
-                                    """.trimIndent()
-                                    loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                                    tag = embedUrl // Save current URL
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                            update = { webView ->
-                                if (webView.tag != embedUrl) {
-                                    val embedHtml = """
-                                        <html>
-                                        <body style="margin: 0; padding: 0; background-color: black;">
-                                            <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                        </body>
-                                        </html>
-                                    """.trimIndent()
-                                    webView.loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                                    webView.tag = embedUrl
+                        if (selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
+                            Column(
+                                modifier = Modifier.fillMaxSize().background(Color.Black),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(imageVector = Icons.Default.PlayCircle, contentDescription = null, tint = Color.Red, modifier = Modifier.size(32.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        val query = generateYouTubeSearchQuery(exerciseName)
+                                        val searchUrl = "https://www.youtube.com/results?search_query=${query.replace(" ", "+")}"
+                                        try { uriHandler.openUri(searchUrl) } catch (e: Exception) {}
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                ) {
+                                    Text("PESQUISAR NO YOUTUBE", fontSize = 10.sp, color = Color.White)
                                 }
                             }
-                        )
+                        } else {
+                            selectedVideo?.let { v ->
+                                LazyYouTubePlayer(videoId = v.videoId, exerciseName = exerciseName, modifier = Modifier.fillMaxSize())
+                            }
+                        }
                     }
                 }
             }
@@ -4530,54 +4529,43 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
 
                         // Webview Player Block
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .background(Color.Black, RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AndroidView(
-                                    factory = { context ->
-                                        WebView(context).apply {
-                                            layoutParams = android.view.ViewGroup.LayoutParams(
-                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                            )
-                                            webViewClient = WebViewClient()
-                                            settings.javaScriptEnabled = true
-                                            settings.mediaPlaybackRequiresUserGesture = false
-                                            settings.domStorageEnabled = true
-                                            settings.useWideViewPort = true
-                                            settings.loadWithOverviewMode = true
-                                            
-                                            val embedHtml = """
-                                                <html>
-                                                <body style="margin: 0; padding: 0; background-color: black;">
-                                                    <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                                </body>
-                                                </html>
-                                            """.trimIndent()
-                                            loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                                            tag = embedUrl
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize(),
-                                    update = { webView ->
-                                        if (webView.tag != embedUrl) {
-                                            val embedHtml = """
-                                                <html>
-                                                <body style="margin: 0; padding: 0; background-color: black;">
-                                                    <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                                </body>
-                                                </html>
-                                            """.trimIndent()
-                                            webView.loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                                            webView.tag = embedUrl
+                            if (selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .background(Color.Black, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        Icon(imageVector = Icons.Default.PlayCircle, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
+                                        Text(text = "Vídeo indisponível para este exercício.", color = Color.White)
+                                        Button(
+                                            onClick = {
+                                                val query = generateYouTubeSearchQuery(exerciseName)
+                                                val searchUrl = "https://www.youtube.com/results?search_query=${query.replace(" ", "+")}"
+                                                try { uriHandler.openUri(searchUrl) } catch (e: Exception) {}
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                        ) {
+                                            Text("VÍDEOS RELACIONADOS", color = Color.White)
                                         }
                                     }
-                                )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .background(Color.Black, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    selectedVideo?.let { v ->
+                                        LazyYouTubePlayer(videoId = v.videoId, exerciseName = exerciseName, modifier = Modifier.fillMaxSize())
+                                    }
+                                }
                             }
                         }
                         
@@ -4805,7 +4793,62 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
 }
 
 @Composable
-fun InAppYouTubePlayerDialogUNUSED(url: String, onClose: () -> Unit) {
+fun LazyYouTubePlayer(videoId: String, exerciseName: String, modifier: Modifier = Modifier) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isPlayerActive by remember(videoId) { mutableStateOf(false) }
+    var context = androidx.compose.ui.platform.LocalContext.current
+    
+    if (!isPlayerActive) {
+        Box(
+            modifier = modifier
+                .background(Color.Black, RoundedCornerShape(8.dp))
+                .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                .clickable { isPlayerActive = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(
+                    imageVector = Icons.Default.PlayCircle, 
+                    contentDescription = null, 
+                    tint = Color.Red, 
+                    modifier = Modifier.size(48.dp)
+                )
+                Text(
+                    text = "VER EXECUÇÃO: ${exerciseName.uppercase()}", 
+                    color = Color.White, 
+                    fontFamily = TechMonospace, 
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "Toque para carregar o vídeo", 
+                    color = Color.Gray, 
+                    fontSize = 10.sp
+                )
+            }
+        }
+    } else {
+        AndroidView(
+            factory = { ctx ->
+                com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView(ctx).apply {
+                    lifecycleOwner.lifecycle.addObserver(this)
+                    addYouTubePlayerListener(object : com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener() {
+                        override fun onReady(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer) {
+                            youTubePlayer.loadVideo(videoId, 0f)
+                        }
+                    })
+                }
+            },
+            modifier = modifier,
+            onRelease = { view ->
+                lifecycleOwner.lifecycle.removeObserver(view)
+                view.release()
+            }
+        )
+    }
+}
+
+// Fixed syntax error from partial replace:
+/*
     val exerciseName = remember(url) { getExerciseNameFromUrl(url) }
     var showWebView by remember { mutableStateOf(false) } // Represents "internal player (beta)" mode
     var activeLabTab by remember { mutableStateOf(0) } // 0 = Video, 1 = Biomechanics
@@ -5154,56 +5197,13 @@ fun InAppYouTubePlayerDialogUNUSED(url: String, onClose: () -> Unit) {
                                     }
 
                                     if (videoId.isNotBlank()) {
-                                        Box(
+                                        LazyYouTubePlayer(
+                                            videoId = videoId,
+                                            exerciseName = exerciseName,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .weight(1f)
-                                                .background(Color.Black, RoundedCornerShape(8.dp))
-                                                .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            AndroidView(
-                                                factory = { context ->
-                                                    WebView(context).apply {
-                                                        layoutParams = android.view.ViewGroup.LayoutParams(
-                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                                        )
-                                                        webViewClient = WebViewClient()
-                                                        settings.javaScriptEnabled = true
-                                                        settings.mediaPlaybackRequiresUserGesture = false
-                                                        settings.domStorageEnabled = true
-                                                        settings.useWideViewPort = true
-                                                        settings.loadWithOverviewMode = true
-
-                                                        // Load secure embedded youtube iframe
-                                                        val embedHtml = """
-                                                            <html>
-                                                            <body style="margin: 0; padding: 0; background-color: black;">
-                                                                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                                            </body>
-                                                            </html>
-                                                        """.trimIndent()
-                                                        loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                                                        tag = videoId
-                                                    }
-                                                },
-                                                modifier = Modifier.fillMaxSize(),
-                                                update = { webView ->
-                                                    if (webView.tag != videoId) {
-                                                        val currentEmbedHtml = """
-                                                            <html>
-                                                            <body style="margin: 0; padding: 0; background-color: black;">
-                                                                <iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                                            </body>
-                                                            </html>
-                                                        """.trimIndent()
-                                                        webView.loadDataWithBaseURL("https://www.youtube.com", currentEmbedHtml, "text/html", "UTF-8", null)
-                                                        webView.tag = videoId
-                                                    }
-                                                }
-                                            )
-                                        }
+                                        )
                                     } else {
                                         Box(
                                             modifier = Modifier
@@ -5671,6 +5671,7 @@ fun InAppYouTubePlayerDialogUNUSED(url: String, onClose: () -> Unit) {
         }
     }
 }
+*/
 
 private fun getExerciseNameFromUrl(url: String): String {
     return when {
@@ -5689,6 +5690,7 @@ private fun getExerciseNameFromUrl(url: String): String {
          else -> "Execução do Exercício"
     }
 }
+
 
 private fun getInAppYouTubeEmbedUrl(originalUrl: String): String {
     if (originalUrl.contains("youtu.be/")) {
@@ -7000,17 +7002,20 @@ fun ManualWorkoutCreatorScreen(
                             singleLine = true
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                            val filtered = availableExercises.filter { 
-                                it.name.contains(searchQuery, ignoreCase = true) || 
-                                it.primaryMuscleName.contains(searchQuery, ignoreCase = true) ||
-                                it.equipment.contains(searchQuery, ignoreCase = true) ||
-                                it.type.contains(searchQuery, ignoreCase = true) ||
-                                it.difficulty.contains(searchQuery, ignoreCase = true) ||
-                                it.primaryMuscleCode.contains(searchQuery, ignoreCase = true) ||
-                                it.secondaryMuscleName.contains(searchQuery, ignoreCase = true)
+                        val filtered = remember(searchQuery, availableExercises) {
+                            if (searchQuery.isBlank()) {
+                                availableExercises.take(30)
+                            } else {
+                                availableExercises.filter { 
+                                    it.name.contains(searchQuery, ignoreCase = true) || 
+                                    it.primaryMuscleName.contains(searchQuery, ignoreCase = true) ||
+                                    it.equipment.contains(searchQuery, ignoreCase = true) ||
+                                    it.type.contains(searchQuery, ignoreCase = true)
+                                }.take(30)
                             }
-                            items(filtered) { ref ->
+                        }
+                        LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                            items(filtered, key = { it.id }) { ref ->
                                 Column(modifier = Modifier.fillMaxWidth().clickable { selectedRef = ref }.padding(8.dp)) {
                                     Text(ref.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                     Text("${ref.primaryMuscleName} • ${ref.equipment} • ${ref.type} • ${ref.difficulty}", color = Color.Gray, fontSize = 12.sp)

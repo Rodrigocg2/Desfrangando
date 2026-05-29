@@ -35,22 +35,26 @@ fun BiomechanicalPlayer(
     viewMode: String, // "ANATOMY", "FRONTCUT", "SIDECUT"
     modifier: Modifier = Modifier
 ) {
-    // Progress loop for skeletal motion
-    val infiniteTransition = rememberInfiniteTransition(label = "biomechanics")
-    
     // Scale duration based on playback speed (standard base is 4 seconds per rep loop)
     val baseDuration = 4000
     val duration = (baseDuration / playbackSpeed.coerceAtLeast(0.1f)).toInt().coerceIn(200, 20000)
     
-    val animatedProgressState = infiniteTransition.animateFloat(
-        initialValue = 0.0f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(duration, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "motion"
-    )
+    val animatedProgressState = remember { Animatable(0f) }
+    
+    LaunchedEffect(isPlaying, duration) {
+        if (isPlaying) {
+            animatedProgressState.animateTo(
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(duration, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                )
+            )
+        } else {
+            animatedProgressState.stop()
+            animatedProgressState.snapTo(0.25f)
+        }
+    }
 
     val textMeasurer = rememberTextMeasurer()
 
@@ -62,7 +66,7 @@ fun BiomechanicalPlayer(
             .padding(8.dp)
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val animationProgress = if (isPlaying) animatedProgressState.value else 0.25f
+            val animationProgress = animatedProgressState.value
             
             val canvasWidth = size.width
             val canvasHeight = size.height
