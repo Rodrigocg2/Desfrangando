@@ -42,4 +42,13 @@ interface WorkoutDao {
 
     @Query("DELETE FROM weight_history WHERE id = :id")
     suspend fun deleteWeightHistoryById(id: Long)
+
+    @Query("SELECT * FROM cached_youtube_videos WHERE exerciseName = :exerciseName LIMIT 1")
+    suspend fun getCachedVideo(exerciseName: String): com.example.model.CachedYouTubeVideo?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCachedVideo(video: com.example.model.CachedYouTubeVideo)
+
+    @Query("DELETE FROM cached_youtube_videos")
+    suspend fun clearCachedVideos()
 }

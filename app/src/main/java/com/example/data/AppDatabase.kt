@@ -7,7 +7,7 @@ import com.example.model.SavedWorkout
 import com.example.model.WorkoutHistory
 import com.example.model.WeightHistory
 
-@Database(entities = [SavedWorkout::class, WorkoutHistory::class, WeightHistory::class], version = 1, exportSchema = false)
+@Database(entities = [SavedWorkout::class, WorkoutHistory::class, WeightHistory::class, com.example.model.CachedYouTubeVideo::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
 

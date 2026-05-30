@@ -152,6 +152,15 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     )
     val watchedVideoHistory = _watchedVideoHistory.asStateFlow()
 
+    private val _dynamicExerciseVideo = MutableStateFlow<com.example.model.CachedYouTubeVideo?>(null)
+    val dynamicExerciseVideo = _dynamicExerciseVideo.asStateFlow()
+
+    private val _isVideoSearching = MutableStateFlow(false)
+    val isVideoSearching = _isVideoSearching.asStateFlow()
+
+    private val _videoSearchError = MutableStateFlow<String?>(null)
+    val videoSearchError = _videoSearchError.asStateFlow()
+
     fun playYouTubeVideo(url: String) {
         _activeYouTubeUrl.value = url
     }
@@ -159,10 +168,54 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun playYouTubeVideoForExercise(exerciseName: String, url: String) {
         _activeExerciseNameForVideo.value = exerciseName
         _activeYouTubeUrl.value = url
+        
+        _dynamicExerciseVideo.value = null
+        _isVideoSearching.value = false
+        _videoSearchError.value = null
+        
+        loadAutomaticVideoForExercise(exerciseName)
+    }
+
+    fun loadAutomaticVideoForExercise(exerciseName: String) {
+        if (exerciseName.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _isVideoSearching.value = true
+            _videoSearchError.value = null
+            try {
+                // 1. Consult local database cache
+                val cached = workoutDao.getCachedVideo(exerciseName)
+                if (cached != null) {
+                    // Cache is valid indefinitely as requested, avoid new query and load instantly
+                    android.util.Log.d("WorkoutViewModel", "Vídeo retornado do cache local: ${cached.title}")
+                    _dynamicExerciseVideo.value = cached
+                    _isVideoSearching.value = false
+                    return@launch
+                }
+
+                // 2. Query YouTube with smart fallback search
+                android.util.Log.d("WorkoutViewModel", "Vídeo não está no cache. Iniciando busca inteligente no YouTube para: $exerciseName")
+                val result = com.example.api.YouTubeSearchClient.searchVideo(exerciseName)
+                if (result != null) {
+                    // Insert into local cache
+                    workoutDao.insertCachedVideo(result)
+                    _dynamicExerciseVideo.value = result
+                } else {
+                    _videoSearchError.value = "Nenhum vídeo ideal encontrado automaticamente."
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutViewModel", "Erro na busca automática: ${e.message}", e)
+                _videoSearchError.value = "Falha de rede ou limite de busca excedido."
+            } finally {
+                _isVideoSearching.value = false
+            }
+        }
     }
 
     fun closeYouTubeVideo() {
         _activeYouTubeUrl.value = null
+        _dynamicExerciseVideo.value = null
+        _isVideoSearching.value = false
+        _videoSearchError.value = null
     }
 
     fun toggleFavoriteVideo(videoId: String) {

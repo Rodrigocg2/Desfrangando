@@ -4330,8 +4330,37 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
     val exerciseNameFromVM by viewModel.activeExerciseNameForVideo.collectAsState()
     val exerciseName = exerciseNameFromVM.ifBlank { getExerciseNameFromUrl(url) }
     
-    val curatedList = remember(exerciseName) { getCuratedVideosForExercise(exerciseName) }
+    val dynamicExerciseVideo by viewModel.dynamicExerciseVideo.collectAsState()
+    val isVideoSearching by viewModel.isVideoSearching.collectAsState()
+    val videoSearchError by viewModel.videoSearchError.collectAsState()
+
+    val curatedList = remember(exerciseName, dynamicExerciseVideo) {
+        val staticList = getCuratedVideosForExercise(exerciseName)
+        if (dynamicExerciseVideo != null) {
+            val autoVideo = CuratedVideo(
+                videoId = dynamicExerciseVideo!!.videoId,
+                title = dynamicExerciseVideo!!.title,
+                trainer = dynamicExerciseVideo!!.channel,
+                views = "Recomendado do YouTube",
+                rating = "★★★★★ [Automático]"
+            )
+            if (staticList.any { it.videoId == "SEARCH_QUERY_FALLBACK" }) {
+                listOf(autoVideo)
+            } else {
+                (listOf(autoVideo) + staticList).distinctBy { it.videoId }
+            }
+        } else {
+            staticList
+        }
+    }
+
     var selectedVideo by remember(exerciseName) { mutableStateOf(curatedList.firstOrNull()) }
+
+    LaunchedEffect(curatedList) {
+        if (selectedVideo == null || selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
+            selectedVideo = curatedList.firstOrNull()
+        }
+    }
     
     var isMiniPlayer by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
@@ -4360,11 +4389,11 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
                 } catch (e: Exception) {
                     q.replace(" ", "+")
                 }
-                "https://www.youtube.com/embed?listType=search&list=$encodedQ&autoplay=0"
+                "https://www.youtube.com/embed?listType=search&list=$encodedQ&autoplay=1"
             } else {
-                "https://www.youtube.com/embed/${video.videoId}?autoplay=0"
+                "https://www.youtube.com/embed/${video.videoId}?autoplay=1"
             }
-        } ?: "https://www.youtube.com/embed/sqOw2Y6u9G4?autoplay=0"
+        } ?: "https://www.youtube.com/embed/sqOw2Y6u9G4?autoplay=1"
     }
 
     if (isMiniPlayer) {
@@ -4433,8 +4462,18 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
                     }
                     
                     // Embedded Player Block
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        if (isVideoSearching) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().background(Color.Black),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(color = ToxicGreen, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Buscando...", color = Color.White, fontSize = 9.sp, fontFamily = TechMonospace)
+                            }
+                        } else if (selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
                             Column(
                                 modifier = Modifier.fillMaxSize().background(Color.Black),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -4555,39 +4594,81 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
 
                         // Webview Player Block
                         item {
-                            if (selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                        .background(Color.Black, RoundedCornerShape(8.dp))
-                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        Icon(imageVector = Icons.Default.PlayCircle, contentDescription = null, tint = Color.Red, modifier = Modifier.size(48.dp))
-                                        Text(text = "Vídeo indisponível para este exercício.", color = Color.White)
-                                        Button(
-                                            onClick = {
-                                                val query = generateYouTubeSearchQuery(exerciseName)
-                                                val searchUrl = "https://www.youtube.com/results?search_query=${query.replace(" ", "+")}"
-                                                try { uriHandler.openUri(searchUrl) } catch (e: Exception) {}
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                                        ) {
-                                            Text("VÍDEOS RELACIONADOS", color = Color.White)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .background(Color.Black, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isVideoSearching) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            color = ToxicGreen,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                        Text(
+                                            text = "Buscando execução no YouTube...",
+                                            color = TextPrimary,
+                                            fontSize = 11.sp,
+                                            fontFamily = TechMonospace
+                                        )
+                                        Text(
+                                            text = "Filtrando canais certificados e técnicas corretas",
+                                            color = TextMuted,
+                                            fontSize = 9.sp,
+                                            fontFamily = TechMonospace
+                                        )
+                                    }
+                                } else if (videoSearchError != null || selectedVideo?.videoId == "SEARCH_QUERY_FALLBACK") {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayCircle,
+                                            contentDescription = null,
+                                            tint = Color.Red,
+                                            modifier = Modifier.size(40.dp)
+                                        )
+                                        Text(
+                                            text = videoSearchError ?: "Vídeo indisponível de forma automática.",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.loadAutomaticVideoForExercise(exerciseName)
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = CarbonSurface),
+                                                border = BorderStroke(1.dp, ToxicGreen),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text("REBUSCAR", color = ToxicGreen, fontSize = 9.sp, fontFamily = TechMonospace, fontWeight = FontWeight.Bold)
+                                            }
+                                            Button(
+                                                onClick = {
+                                                    val query = generateYouTubeSearchQuery(exerciseName)
+                                                    val searchUrl = "https://www.youtube.com/results?search_query=${query.replace(" ", "+")}"
+                                                    try { uriHandler.openUri(searchUrl) } catch (e: Exception) {}
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text("BUSCAR NO YT", color = Color.White, fontSize = 9.sp, fontFamily = TechMonospace, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                        .background(Color.Black, RoundedCornerShape(8.dp))
-                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                } else {
                                     selectedVideo?.let { v ->
                                         LazyYouTubePlayer(videoId = v.videoId, exerciseName = exerciseName, modifier = Modifier.fillMaxSize())
                                     }
@@ -4820,10 +4901,24 @@ fun InAppYouTubePlayerDialog(url: String, viewModel: WorkoutViewModel, onClose: 
 
 @Composable
 fun LazyYouTubePlayer(videoId: String, exerciseName: String, modifier: Modifier = Modifier) {
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var isPlayerActive by remember(videoId) { mutableStateOf(false) }
-    var context = androidx.compose.ui.platform.LocalContext.current
-    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var hasError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    val activity = context as? android.app.Activity
+
+    // Restore orientation and system ui state when player is disposed or videoId changes
+    androidx.compose.runtime.DisposableEffect(videoId) {
+        onDispose {
+            activity?.let { act ->
+                act.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                act.window.decorView.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
+    }
+
     if (!isPlayerActive) {
         Box(
             modifier = modifier
@@ -4853,23 +4948,120 @@ fun LazyYouTubePlayer(videoId: String, exerciseName: String, modifier: Modifier 
             }
         }
     } else {
-        AndroidView(
-            factory = { ctx ->
-                com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView(ctx).apply {
-                    lifecycleOwner.lifecycle.addObserver(this)
-                    addYouTubePlayerListener(object : com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener() {
-                        override fun onReady(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer) {
-                            youTubePlayer.loadVideo(videoId, 0f)
+        Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+            if (!hasError) {
+                AndroidView(
+                    factory = { ctx ->
+                        com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView(ctx).apply {
+                            lifecycleOwner.lifecycle.addObserver(this)
+                            addYouTubePlayerListener(object : com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener() {
+                                override fun onReady(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer) {
+                                    youTubePlayer.loadVideo(videoId, 0f)
+                                }
+                                override fun onError(
+                                    youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer,
+                                    error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError
+                                ) {
+                                    android.util.Log.e("YOUTUBE_PLAYER", "Erro no player: $error")
+                                    hasError = true
+                                    errorMessage = if (error == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER) {
+                                        "Este vídeo não permite reprodução dentro do aplicativo."
+                                    } else {
+                                        "Não foi possível reproduzir este vídeo ($error)."
+                                    }
+                                }
+                            })
                         }
-                    })
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    onRelease = { view ->
+                        lifecycleOwner.lifecycle.removeObserver(view)
+                        view.release()
+                    }
+                )
+                
+                // Overlay "Close" button always present in case iframe freezes
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .clickable { isPlayerActive = false }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text("FECHAR VÍDEO", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
-            },
-            modifier = modifier,
-            onRelease = { view ->
-                lifecycleOwner.lifecycle.removeObserver(view)
-                view.release()
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.9f))
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Error,
+                        contentDescription = null,
+                        tint = Color.Red,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = errorMessage,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Abrir no YouTube?",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Button(
+                            onClick = {
+                                val appIntent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW, 
+                                    android.net.Uri.parse("vnd.youtube:$videoId")
+                                )
+                                val webIntent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://www.youtube.com/watch?v=$videoId")
+                                )
+                                try {
+                                    context.startActivity(appIntent)
+                                } catch (ex: android.content.ActivityNotFoundException) {
+                                    try {
+                                        context.startActivity(webIntent)
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "Não foi possível abrir.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ToxicGreen, contentColor = Color.Black),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("ABRIR NO YOUTUBE", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                isPlayerActive = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CarbonCard, contentColor = Color.White),
+                            border = BorderStroke(1.dp, ToxicGreen),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("FECHAR E BUSCAR OUTRO", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
-        )
+        }
     }
 }
 
@@ -5206,21 +5398,7 @@ fun LazyYouTubePlayer(videoId: String, exerciseName: String, modifier: Modifier 
                                         fontSize = 11.sp
                                     )
 
-                                    val videoId = remember(url) {
-                                        try {
-                                            if (url.contains("youtu.be/")) {
-                                                url.substringAfter("youtu.be/").substringBefore("?").substringBefore("&")
-                                            } else if (url.contains("v=")) {
-                                                url.substringAfter("v=").substringBefore("&")
-                                            } else if (url.contains("embed/")) {
-                                                url.substringAfter("embed/").substringBefore("?").substringBefore("&")
-                                            } else {
-                                                ""
-                                            }
-                                        } catch (e: Exception) {
-                                            ""
-                                        }
-                                    }
+                                    val videoId = remember(url) { extractYouTubeVideoId(url) }
 
                                     if (videoId.isNotBlank()) {
                                         LazyYouTubePlayer(
@@ -5718,15 +5896,47 @@ private fun getExerciseNameFromUrl(url: String): String {
 }
 
 
-private fun getInAppYouTubeEmbedUrl(originalUrl: String): String {
-    if (originalUrl.contains("youtu.be/")) {
-        val videoId = originalUrl.substringAfter("youtu.be/").substringBefore("?").substringBefore("&")
-        return "https://www.youtube.com/embed/$videoId?autoplay=1"
-    } else if (originalUrl.contains("youtube.com/watch")) {
-        val videoId = originalUrl.substringAfter("v=").substringBefore("&")
-        return "https://www.youtube.com/embed/$videoId?autoplay=1"
+fun extractYouTubeVideoId(url: String): String {
+    if (url.isBlank()) return ""
+    val trimmed = url.trim()
+    return try {
+        when {
+            trimmed.contains("youtu.be/") -> {
+                trimmed.substringAfter("youtu.be/").substringBefore("?").substringBefore("&").substringBefore("/")
+            }
+            trimmed.contains("shorts/") -> {
+                trimmed.substringAfter("shorts/").substringBefore("?").substringBefore("&").substringBefore("/")
+            }
+            trimmed.contains("embed/") -> {
+                trimmed.substringAfter("embed/").substringBefore("?").substringBefore("&").substringBefore("/")
+            }
+            trimmed.contains("v=") -> {
+                trimmed.substringAfter("v=").substringBefore("&").substringBefore("?")
+            }
+            trimmed.contains("watch/") -> {
+                trimmed.substringAfter("watch/").substringBefore("?").substringBefore("&").substringBefore("/")
+            }
+            else -> {
+                if (trimmed.length == 11 && !trimmed.contains("/") && !trimmed.contains(".")) {
+                    trimmed
+                } else {
+                    val regex = "^(?:https?:\\/\\/)?(?:www\\.|m\\.)?(?:youtube\\.com\\/(?:watch\\?\\S*v=|embed\\/|shorts\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})".toRegex()
+                    regex.find(trimmed)?.groupValues?.get(1) ?: trimmed
+                }
+            }
+        }
+    } catch (e: Exception) {
+        ""
     }
-    return originalUrl
+}
+
+private fun getInAppYouTubeEmbedUrl(originalUrl: String): String {
+    val videoId = extractYouTubeVideoId(originalUrl)
+    return if (videoId.isNotEmpty()) {
+        "https://www.youtube.com/embed/$videoId?autoplay=1"
+    } else {
+        originalUrl
+    }
 }
 
 private fun getExerciseTelemetry(exercise: String): ExerciseTelemetryData {

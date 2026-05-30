@@ -126,3 +126,13 @@ data class WeightHistory(
     val dateRecorded: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "cached_youtube_videos")
+data class CachedYouTubeVideo(
+    @PrimaryKey val exerciseName: String,
+    val videoId: String,
+    val title: String,
+    val channel: String,
+    val thumbnailUrl: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
