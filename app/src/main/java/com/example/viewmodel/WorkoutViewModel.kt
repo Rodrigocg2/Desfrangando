@@ -27,7 +27,61 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val moshi = Moshi.Builder().build()
 
-    private val _isDarkTheme = MutableStateFlow(prefs.getBoolean("is_dark_theme", true))
+    private fun getBooleanPref(key: String, defaultValue: Boolean): Boolean {
+        return try {
+            prefs.getBoolean(key, defaultValue)
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private fun getFloatPref(key: String, defaultValue: Float): Float {
+        return try {
+            prefs.getFloat(key, defaultValue)
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private fun getStringPref(key: String, defaultValue: String): String {
+        return try {
+            prefs.getString(key, defaultValue) ?: defaultValue
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private fun getIntPref(key: String, defaultValue: Int): Int {
+        return try {
+            prefs.getInt(key, defaultValue)
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private fun getLongPref(key: String, defaultValue: Long): Long {
+        return try {
+            prefs.getLong(key, defaultValue)
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private fun getStringSetPref(key: String, defaultValue: Set<String>): Set<String> {
+        return try {
+            prefs.getStringSet(key, defaultValue) ?: defaultValue
+        } catch (e: Exception) {
+            try { prefs.edit().remove(key).apply() } catch (ex: Exception) {}
+            defaultValue
+        }
+    }
+
+    private val _isDarkTheme = MutableStateFlow(getBooleanPref("is_dark_theme", true))
     val isDarkTheme = _isDarkTheme.asStateFlow()
 
     fun setDarkTheme(enabled: Boolean) {
@@ -35,19 +89,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().putBoolean("is_dark_theme", enabled).apply()
     }
 
-    private val _userWeight = MutableStateFlow(prefs.getFloat("user_weight", 80.0f))
+    private val _userWeight = MutableStateFlow(getFloatPref("user_weight", 80.0f))
     val userWeight = _userWeight.asStateFlow()
 
-    private val _isGoogleLoggedIn = MutableStateFlow(prefs.getBoolean("google_logged_in", false))
+    private val _isGoogleLoggedIn = MutableStateFlow(getBooleanPref("google_logged_in", false))
     val isGoogleLoggedIn = _isGoogleLoggedIn.asStateFlow()
 
-    private val _googleUserName = MutableStateFlow(prefs.getString("google_user_name", "Visitante") ?: "Visitante")
+    private val _googleUserName = MutableStateFlow(getStringPref("google_user_name", "Visitante"))
     val googleUserName = _googleUserName.asStateFlow()
 
-    private val _googleUserEmail = MutableStateFlow(prefs.getString("google_user_email", "") ?: "")
+    private val _googleUserEmail = MutableStateFlow(getStringPref("google_user_email", ""))
     val googleUserEmail = _googleUserEmail.asStateFlow()
 
-    private val _googleUserPhoto = MutableStateFlow(prefs.getString("google_user_photo", "") ?: "")
+    private val _googleUserPhoto = MutableStateFlow(getStringPref("google_user_photo", ""))
     val googleUserPhoto = _googleUserPhoto.asStateFlow()
 
     private val _triggerGoogleLoginEvent = MutableStateFlow(false)
@@ -72,10 +126,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _googleLoginError.value = null
     }
 
-    private val _workoutsPerDay = MutableStateFlow(prefs.getInt("workouts_per_day", 1))
+    private val _workoutsPerDay = MutableStateFlow(getIntPref("workouts_per_day", 1))
     val workoutsPerDay = _workoutsPerDay.asStateFlow()
 
-    private val _workoutsPerWeek = MutableStateFlow(prefs.getInt("workouts_per_week", 3))
+    private val _workoutsPerWeek = MutableStateFlow(getIntPref("workouts_per_week", 3))
     val workoutsPerWeek = _workoutsPerWeek.asStateFlow()
 
     private val _activeYouTubeUrl = MutableStateFlow<String?>(null)
@@ -84,12 +138,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _activeExerciseNameForVideo = MutableStateFlow<String>("")
     val activeExerciseNameForVideo = _activeExerciseNameForVideo.asStateFlow()
 
-    private val _favoriteVideoIds = MutableStateFlow<Set<String>>(prefs.getStringSet("favorite_video_ids", emptySet()) ?: emptySet())
+    private val _favoriteVideoIds = MutableStateFlow<Set<String>>(getStringSetPref("favorite_video_ids", emptySet()))
     val favoriteVideoIds = _favoriteVideoIds.asStateFlow()
 
     private val _watchedVideoHistory = MutableStateFlow<List<String>>(
         try {
-            val jsonString = prefs.getString("watched_video_history_json", "[]") ?: "[]"
+            val jsonString = getStringPref("watched_video_history_json", "[]")
             val listType = Types.newParameterizedType(List::class.java, String::class.java)
             moshi.adapter<List<String>>(listType).fromJson(jsonString) ?: emptyList()
         } catch (e: Exception) {
@@ -112,14 +166,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun toggleFavoriteVideo(videoId: String) {
-        val currentSet = prefs.getStringSet("favorite_video_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+        val currentSet = getStringSetPref("favorite_video_ids", emptySet()).toMutableSet()
         if (currentSet.contains(videoId)) {
             currentSet.remove(videoId)
         } else {
             currentSet.add(videoId)
         }
         _favoriteVideoIds.value = currentSet
-        prefs.edit().putStringSet("favorite_video_ids", currentSet).apply()
+        try {
+            prefs.edit().putStringSet("favorite_video_ids", currentSet).apply()
+        } catch (e: Exception) {}
     }
 
     fun addToVideoHistory(videoId: String, exerciseName: String, title: String, channel: String, views: String) {
@@ -138,22 +194,22 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private val _userHeight = MutableStateFlow(prefs.getFloat("user_height", 180.0f))
+    private val _userHeight = MutableStateFlow(getFloatPref("user_height", 180.0f))
     val userHeight = _userHeight.asStateFlow()
 
-    private val _stravaClientId = MutableStateFlow(prefs.getString("strava_client_id", "") ?: "")
+    private val _stravaClientId = MutableStateFlow(getStringPref("strava_client_id", ""))
     val stravaClientId = _stravaClientId.asStateFlow()
 
-    private val _stravaClientSecret = MutableStateFlow(prefs.getString("strava_client_secret", "") ?: "")
+    private val _stravaClientSecret = MutableStateFlow(getStringPref("strava_client_secret", ""))
     val stravaClientSecret = _stravaClientSecret.asStateFlow()
 
-    private val _isStravaConnected = MutableStateFlow(prefs.getBoolean("strava_connected", false))
+    private val _isStravaConnected = MutableStateFlow(getBooleanPref("strava_connected", false))
     val isStravaConnected = _isStravaConnected.asStateFlow()
 
-    private val _isGoogleFitConnected = MutableStateFlow(prefs.getBoolean("google_fit_connected", false))
+    private val _isGoogleFitConnected = MutableStateFlow(getBooleanPref("google_fit_connected", false))
     val isGoogleFitConnected = _isGoogleFitConnected.asStateFlow()
 
-    private val _lastSyncedTime = MutableStateFlow(prefs.getLong("last_synced_time", 0L))
+    private val _lastSyncedTime = MutableStateFlow(getLongPref("last_synced_time", 0L))
     val lastSyncedTime = _lastSyncedTime.asStateFlow()
 
     private val _syncMessage = MutableStateFlow<String?>(null)
@@ -166,7 +222,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val _tabs = MutableStateFlow<List<com.example.model.RoutineCategory>>(emptyList())
     val tabs = _tabs.asStateFlow()
 
-    private val _activeTab = MutableStateFlow(prefs.getString("active_tab_name", "Favorito") ?: "Favorito")
+    private val _activeTab = MutableStateFlow(getStringPref("active_tab_name", "Favorito"))
     val activeTab = _activeTab.asStateFlow()
 
     // --- Cycle State ---
@@ -207,7 +263,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Init block is consolidated and located below all constructor property declarations
 
     private fun loadTabs() {
-        val json = prefs.getString("custom_tabs_json", "[]") ?: "[]"
+        val json = getStringPref("custom_tabs_json", "[]")
         try {
             val listType = com.squareup.moshi.Types.newParameterizedType(List::class.java, com.example.model.RoutineCategory::class.java)
             val adapter = moshi.adapter<List<com.example.model.RoutineCategory>>(listType)
@@ -289,14 +345,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun switchActiveTab(tabName: String) {
         _activeTab.value = tabName
-        prefs.edit().putString("active_tab_name", tabName).apply()
+        try {
+            prefs.edit().putString("active_tab_name", tabName).apply()
+        } catch (e: Exception) {}
         
         // Load state specific to this tab
-        _currentCycleWorkoutIds.value = prefs.getString("cycle_workout_ids_$tabName", "")?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
-        _currentCycleIndex.value = prefs.getInt("cycle_current_index_$tabName", 0)
-        _cycleTotalWorkoutsCompleted.value = prefs.getInt("cycle_total_workouts_completed_$tabName", 0)
-        _cycleStartDateMs.value = prefs.getLong("cycle_start_date_ms_$tabName", 0L)
-        _currentStreak.value = prefs.getInt("current_streak_$tabName", 0)
+        _currentCycleWorkoutIds.value = getStringPref("cycle_workout_ids_$tabName", "").split(",").filter { it.isNotEmpty() }
+        _currentCycleIndex.value = getIntPref("cycle_current_index_$tabName", 0)
+        _cycleTotalWorkoutsCompleted.value = getIntPref("cycle_total_workouts_completed_$tabName", 0)
+        _cycleStartDateMs.value = getLongPref("cycle_start_date_ms_$tabName", 0L)
+        _currentStreak.value = getIntPref("current_streak_$tabName", 0)
     }
 
     // --- Uncaught Crash Log Diagnostic State ---
@@ -405,34 +463,34 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Log setup is consolidated into the unified init block below
 
     // --- Premium Form Questionnaire States ---
-    private val _userName = MutableStateFlow(prefs.getString("user_name", "Atleta") ?: "Atleta")
+    private val _userName = MutableStateFlow(getStringPref("user_name", "Atleta"))
     val userName = _userName.asStateFlow()
 
-    private val _userAge = MutableStateFlow(prefs.getString("user_age", "25") ?: "25")
+    private val _userAge = MutableStateFlow(getStringPref("user_age", "25"))
     val userAge = _userAge.asStateFlow()
 
-    private val _userGender = MutableStateFlow(prefs.getString("user_gender", "Masculino") ?: "Masculino")
+    private val _userGender = MutableStateFlow(getStringPref("user_gender", "Masculino"))
     val userGender = _userGender.asStateFlow()
 
-    private val _selectedObjective = MutableStateFlow(prefs.getString("user_objective", "Hipertrofia") ?: "Hipertrofia")
+    private val _selectedObjective = MutableStateFlow(getStringPref("user_objective", "Hipertrofia"))
     val selectedObjective = _selectedObjective.asStateFlow()
 
-    private val _userFitnessLevel = MutableStateFlow(prefs.getString("user_fitness_level", "Avançado") ?: "Avançado")
+    private val _userFitnessLevel = MutableStateFlow(getStringPref("user_fitness_level", "Avançado"))
     val userFitnessLevel = _userFitnessLevel.asStateFlow()
 
-    private val _workoutsPerWeekCount = MutableStateFlow(prefs.getInt("workouts_per_week_count", 5))
+    private val _workoutsPerWeekCount = MutableStateFlow(getIntPref("workouts_per_week_count", 5))
     val workoutsPerWeekCount = _workoutsPerWeekCount.asStateFlow()
 
-    private val _chosenSplitPattern = MutableStateFlow(prefs.getString("chosen_split_pattern", "Push Pull Legs") ?: "Push Pull Legs")
+    private val _chosenSplitPattern = MutableStateFlow(getStringPref("chosen_split_pattern", "Push Pull Legs"))
     val chosenSplitPattern = _chosenSplitPattern.asStateFlow()
 
-    private val _workoutDurationChoice = MutableStateFlow(prefs.getString("workout_duration_choice", "60 min") ?: "60 min")
+    private val _workoutDurationChoice = MutableStateFlow(getStringPref("workout_duration_choice", "60 min"))
     val workoutDurationChoice = _workoutDurationChoice.asStateFlow()
 
-    private val _workoutLocation = MutableStateFlow(prefs.getString("workout_location", "Academia completa") ?: "Academia completa")
+    private val _workoutLocation = MutableStateFlow(getStringPref("workout_location", "Academia completa"))
     val workoutLocation = _workoutLocation.asStateFlow()
 
-    private val _optionalMuscleFocus = MutableStateFlow(prefs.getString("optional_muscle_focus", "") ?: "")
+    private val _optionalMuscleFocus = MutableStateFlow(getStringPref("optional_muscle_focus", ""))
     val optionalMuscleFocus = _optionalMuscleFocus.asStateFlow()
 
     fun updateName(name: String) {
@@ -818,7 +876,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         
         // Streak Logic
         val tabName = _activeTab.value
-        val lastTime = prefs.getLong("last_workout_time_ms_$tabName", 0L)
+        val lastTime = getLongPref("last_workout_time_ms_$tabName", 0L)
         val now = System.currentTimeMillis()
         val diffHours = (now - lastTime) / (1000 * 60 * 60)
         
@@ -961,13 +1019,15 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun getSavedGoogleAccounts(): List<Triple<String, String, String>> {
-        val set = prefs.getStringSet("google_saved_accounts_set", emptySet()) ?: emptySet()
+        val set = getStringSetPref("google_saved_accounts_set", emptySet())
         if (set.isEmpty()) {
             val defaultName = "Rodrigo"
             val defaultEmail = "Rodrigocg2@gmail.com"
             val defaultPhoto = "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=256&q=80"
             val defaultSet = setOf("$defaultName|$defaultEmail|$defaultPhoto")
-            prefs.edit().putStringSet("google_saved_accounts_set", defaultSet).apply()
+            try {
+                prefs.edit().putStringSet("google_saved_accounts_set", defaultSet).apply()
+            } catch (e: Exception) {}
             return listOf(Triple(defaultName, defaultEmail, defaultPhoto))
         }
         return set.map {
@@ -980,7 +1040,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun saveGoogleAccountToCache(name: String, email: String, photo: String) {
-        val currentSet = prefs.getStringSet("google_saved_accounts_set", emptySet())?.toMutableSet() ?: mutableSetOf()
+        val currentSet = getStringSetPref("google_saved_accounts_set", emptySet()).toMutableSet()
         currentSet.removeAll { it.contains("|$email|") || it.endsWith("|$email") || it.contains("|$email") }
         currentSet.add("$name|$email|$photo")
         prefs.edit().putStringSet("google_saved_accounts_set", currentSet).apply()

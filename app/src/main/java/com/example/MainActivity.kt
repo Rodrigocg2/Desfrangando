@@ -6,11 +6,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.GymAppRoot
 import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.WorkoutViewModel
@@ -56,11 +67,19 @@ class MainActivity : ComponentActivity() {
             .build()
             
         var lastAccount: com.google.android.gms.auth.api.signin.GoogleSignInAccount? = null
+        var startupError: Throwable? = null
         try {
             googleSignInClient = GoogleSignIn.getClient(this, gso)
             lastAccount = GoogleSignIn.getLastSignedInAccount(this)
         } catch (e: Throwable) {
             android.util.Log.e("MainActivity", "Failed to initialize standard Google Sign In Client", e)
+        }
+
+        try {
+            mainViewModel = androidx.lifecycle.ViewModelProvider(this)[WorkoutViewModel::class.java]
+        } catch (e: Throwable) {
+            startupError = e
+            android.util.Log.e("MainActivity", "Failed to initialize WorkoutViewModel", e)
         }
         
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -72,45 +91,75 @@ class MainActivity : ComponentActivity() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: WorkoutViewModel = viewModel()
-            mainViewModel = viewModel
-            val isDarkTheme by viewModel.isDarkTheme.collectAsState()
-            
-            androidx.compose.runtime.LaunchedEffect(lastAccount) {
-                if (lastAccount != null && !viewModel.isGoogleLoggedIn.value) {
-                    try {
-                        val name = lastAccount.displayName ?: "Rodrigo"
-                        val email = lastAccount.email ?: "Rodrigocg2@gmail.com"
-                        val photoUrl = lastAccount.photoUrl?.toString() ?: ""
-                        viewModel.loginWithGoogle(name, email, photoUrl)
-                    } catch (e: Throwable) {
-                        android.util.Log.e("MainActivity", "Safely skipped auto-login account property verification: ", e)
-                    }
-                }
-            }
-            
-            val triggerLoginEvent by viewModel.triggerGoogleLoginEvent.collectAsState()
-            androidx.compose.runtime.LaunchedEffect(triggerLoginEvent) {
-                if (triggerLoginEvent) {
-                    try {
-                        if (::googleSignInClient.isInitialized) {
-                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
-                        } else {
-                            viewModel.triggerGoogleLoginError("Google Sign-In não inicializado neste dispositivo.")
+        try {
+            enableEdgeToEdge()
+            setContent {
+                val errState = startupError
+                if (errState != null) {
+                    MaterialTheme {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF131215))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "STARTUP ERROR:\n\n${errState.stackTraceToString()}",
+                                color = Color.Red,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                modifier = Modifier.verticalScroll(rememberScrollState())
+                            )
                         }
-                    } catch (e: Throwable) {
-                        viewModel.triggerGoogleLoginError(e.localizedMessage ?: "Erro ao iniciar Login com Google")
-                    } finally {
-                        viewModel.resetGoogleLoginTrigger()
+                    }
+                } else {
+                    val viewModel = mainViewModel ?: androidx.lifecycle.ViewModelProvider(this)[WorkoutViewModel::class.java]
+                    val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+                    
+                    androidx.compose.runtime.LaunchedEffect(lastAccount) {
+                        if (lastAccount != null && !viewModel.isGoogleLoggedIn.value) {
+                            try {
+                                val name = lastAccount.displayName ?: "Rodrigo"
+                                val email = lastAccount.email ?: "Rodrigocg2@gmail.com"
+                                val photoUrl = lastAccount.photoUrl?.toString() ?: ""
+                                viewModel.loginWithGoogle(name, email, photoUrl)
+                            } catch (e: Throwable) {
+                                android.util.Log.e("MainActivity", "Safely skipped auto-login account property verification: ", e)
+                            }
+                        }
+                    }
+                    
+                    val triggerLoginEvent by viewModel.triggerGoogleLoginEvent.collectAsState()
+                    androidx.compose.runtime.LaunchedEffect(triggerLoginEvent) {
+                        if (triggerLoginEvent) {
+                            try {
+                                if (::googleSignInClient.isInitialized) {
+                                    googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                                } else {
+                                    viewModel.triggerGoogleLoginError("Google Sign-In não inicializado neste dispositivo.")
+                                }
+                            } catch (e: Throwable) {
+                                viewModel.triggerGoogleLoginError(e.localizedMessage ?: "Erro ao iniciar Login com Google")
+                            } finally {
+                                viewModel.resetGoogleLoginTrigger()
+                            }
+                        }
+                    }
+                    
+                    MyApplicationTheme(darkTheme = isDarkTheme) {
+                        GymAppRoot(viewModel = viewModel)
                     }
                 }
             }
-            
-            MyApplicationTheme(darkTheme = isDarkTheme) {
-                GymAppRoot(viewModel = viewModel)
-            }
+        } catch (t: Throwable) {
+            android.util.Log.e("MainActivity", "Failed to set Content", t)
+            val tv = android.widget.TextView(this)
+            tv.text = "CRITICAL BOOTSTRAP ERROR:\n\n${t.stackTraceToString()}"
+            tv.setTextColor(android.graphics.Color.RED)
+            tv.setPadding(32, 32, 32, 32)
+            tv.movementMethod = android.text.method.ScrollingMovementMethod()
+            setContentView(tv)
         }
     }
 }

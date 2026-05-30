@@ -1095,6 +1095,24 @@ object GeminiClient {
             ))
         }
 
+        // Helper function to safely get from list or fallback to a newly constructed default exercise
+        fun safeGet(list: List<WorkoutExercise>, index: Int, fallbackName: String): WorkoutExercise {
+            return list.getOrNull(index) ?: list.firstOrNull() ?: WorkoutExercise(
+                exerciseId = "fallback_${fallbackName.replace(" ", "_").lowercase()}",
+                name = fallbackName,
+                muscleGroup = "Geral",
+                targetMuscleDetail = "Fisiologia e controle motor",
+                sets = 3,
+                repsRange = "10-12 reps",
+                tempo = "3-0-1-0",
+                restSeconds = 60,
+                advancedTechnique = "Nenhuma",
+                intensityRPE = 8,
+                notes = "Mantenha postura firme e cadência perfeitamente controlada.",
+                trainingPhase = "Principal"
+            )
+        }
+
         // 3. Construct final exact list adhering to strict sequence:
         // Ordem: Warmup -> Composto Pesado -> Compostos Auxiliares -> Isoladores -> Abdômen -> Cardio/Stretch
         // We will fill exactly 'limit' exercises
@@ -1108,44 +1126,44 @@ object GeminiClient {
         // Grab compounds and isolators to fill needed sections
         when (limit) {
             5 -> { // 1 Warmup + 3 mid-sections + 1 stretch = 5
-                chosenMidSections.add(heavyCompounds.getOrNull(0) ?: heavyCompounds.first())
-                chosenMidSections.add(isolators.getOrNull(0) ?: isolators.first())
-                chosenMidSections.add(abs.getOrNull(0) ?: abs.first())
+                chosenMidSections.add(safeGet(heavyCompounds, 0, "Supino Reto com Barra"))
+                chosenMidSections.add(safeGet(isolators, 0, "Rosca Direta Polia"))
+                chosenMidSections.add(safeGet(abs, 0, "Abdominal Crunch"))
             }
             6 -> { // 1 Warmup + 4 mid-sections + 1 stretch = 6
-                chosenMidSections.add(heavyCompounds.getOrNull(0) ?: heavyCompounds.first())
-                chosenMidSections.add(auxiliaryCompounds.getOrNull(0) ?: auxiliaryCompounds.first())
-                chosenMidSections.add(isolators.getOrNull(0) ?: isolators.first())
-                chosenMidSections.add(abs.getOrNull(0) ?: abs.first())
+                chosenMidSections.add(safeGet(heavyCompounds, 0, "Supino Reto com Barra"))
+                chosenMidSections.add(safeGet(auxiliaryCompounds, 0, "Remada Curvada com Barra"))
+                chosenMidSections.add(safeGet(isolators, 0, "Elevação Lateral"))
+                chosenMidSections.add(safeGet(abs, 0, "Abdominal Crunch"))
             }
             7 -> { // 1 Warmup + 5 mid-sections + 1 stretch = 7
-                chosenMidSections.add(heavyCompounds.getOrNull(0) ?: heavyCompounds.first())
-                chosenMidSections.add(auxiliaryCompounds.getOrNull(0) ?: auxiliaryCompounds.first())
-                chosenMidSections.add(isolators.getOrNull(0) ?: isolators.first())
-                chosenMidSections.add(isolators.getOrNull(1) ?: isolators.first())
-                chosenMidSections.add(abs.getOrNull(0) ?: abs.first())
+                chosenMidSections.add(safeGet(heavyCompounds, 0, "Supino Reto com Barra"))
+                chosenMidSections.add(safeGet(auxiliaryCompounds, 0, "Remada Curvada com Barra"))
+                chosenMidSections.add(safeGet(isolators, 0, "Elevação Lateral"))
+                chosenMidSections.add(safeGet(isolators, 1, "Tríceps Testa"))
+                chosenMidSections.add(safeGet(abs, 0, "Abdominal Crunch"))
             }
             8 -> { // 1 Warmup + 6 mid-sections + 1 stretch = 8
-                chosenMidSections.add(heavyCompounds.getOrNull(0) ?: heavyCompounds.first())
-                chosenMidSections.add(auxiliaryCompounds.getOrNull(0) ?: auxiliaryCompounds.first())
-                chosenMidSections.add(auxiliaryCompounds.getOrNull(1) ?: auxiliaryCompounds.getOrNull(0) ?: auxiliaryCompounds.first())
-                chosenMidSections.add(isolators.getOrNull(0) ?: isolators.first())
-                chosenMidSections.add(isolators.getOrNull(1) ?: isolators.first())
-                chosenMidSections.add(abs.getOrNull(0) ?: abs.first())
+                chosenMidSections.add(safeGet(heavyCompounds, 0, "Supino Reto com Barra"))
+                chosenMidSections.add(safeGet(auxiliaryCompounds, 0, "Puxada Pulley"))
+                chosenMidSections.add(safeGet(auxiliaryCompounds, 1, "Remada Serrote"))
+                chosenMidSections.add(safeGet(isolators, 0, "Elevação Lateral"))
+                chosenMidSections.add(safeGet(isolators, 1, "Tríceps Testa"))
+                chosenMidSections.add(safeGet(abs, 0, "Abdominal Crunch"))
             }
             else -> { // Same as 7
-                chosenMidSections.add(heavyCompounds.getOrNull(0) ?: heavyCompounds.first())
-                chosenMidSections.add(auxiliaryCompounds.getOrNull(0) ?: auxiliaryCompounds.first())
-                chosenMidSections.add(isolators.getOrNull(0) ?: isolators.first())
-                chosenMidSections.add(isolators.getOrNull(1) ?: isolators.first())
-                chosenMidSections.add(abs.getOrNull(0) ?: abs.first())
+                chosenMidSections.add(safeGet(heavyCompounds, 0, "Supino Reto com Barra"))
+                chosenMidSections.add(safeGet(auxiliaryCompounds, 0, "Remada Curvada com Barra"))
+                chosenMidSections.add(safeGet(isolators, 0, "Elevação Lateral"))
+                chosenMidSections.add(safeGet(isolators, 1, "Tríceps Testa"))
+                chosenMidSections.add(safeGet(abs, 0, "Abdominal Crunch"))
             }
         }
 
         resultList.addAll(chosenMidSections)
 
         // Position Last: Cardio or Stretch
-        resultList.add(cardioOrStretch.getOrNull(0) ?: cardioOrStretch.first())
+        resultList.add(safeGet(cardioOrStretch, 0, "Alongamento Isométrico"))
 
         // Ensure exact slice equal to limit
         val finalExercises = resultList.take(limit)
