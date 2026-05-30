@@ -3936,6 +3936,32 @@ fun UserProfileScreen(viewModel: WorkoutViewModel) {
                 }
             }
         }
+
+        // Versão do App
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "DESFRANGANDO ATHLETICS",
+                    fontFamily = TechMonospace,
+                    color = ToxicGreen.copy(alpha = 0.6f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Versão 1.0.0 (Build 1) • Produção",
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = TechMonospace
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
     }
 
     // Credentials dialog for Strava Integration
@@ -6343,13 +6369,18 @@ fun LoginEntranceScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF131215)) // Beautiful deep slate solid background fallback
     ) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.bg_desfrangando_imagem),
+        coil.compose.AsyncImage(
+            model = com.example.R.drawable.bg_desfrangando_imagem,
             contentDescription = "Background",
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            onError = { err ->
+                android.util.Log.e("GymApp", "Failed to load background image, showing vector/gradient fallback", err.result.throwable)
+            }
         )
         // Leve dark overlay transparente para melhorar leitura
         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
@@ -6474,6 +6505,13 @@ fun LoginEntranceScreen(
                 Text("Entrar como Visitante", color = Color.Gray, fontSize = 12.sp) 
             }
             Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Versão 1.0.0 (Build 1)",
+                color = Color.Gray.copy(alpha = 0.5f),
+                fontFamily = TechMonospace,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 

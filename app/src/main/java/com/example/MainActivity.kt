@@ -27,8 +27,8 @@ class MainActivity : ComponentActivity() {
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             val account = task.getResult(ApiException::class.java)
             if (account != null) {
                 val name = account.displayName ?: "Rodrigo"
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
                 vm.loginWithGoogle(name, email, photoUrl)
                 Toast.makeText(this, "Conectado como: $email", Toast.LENGTH_SHORT).show()
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // If Google login fails (e.g., config error / missing client id on sandbox),
             // tell the viewModel to allow seamless visual dialog fallback
             val vm = mainViewModel ?: androidx.lifecycle.ViewModelProvider(this)[WorkoutViewModel::class.java]
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
         try {
             googleSignInClient = GoogleSignIn.getClient(this, gso)
             lastAccount = GoogleSignIn.getLastSignedInAccount(this)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             android.util.Log.e("MainActivity", "Failed to initialize standard Google Sign In Client", e)
         }
         
@@ -80,10 +80,14 @@ class MainActivity : ComponentActivity() {
             
             androidx.compose.runtime.LaunchedEffect(lastAccount) {
                 if (lastAccount != null && !viewModel.isGoogleLoggedIn.value) {
-                    val name = lastAccount.displayName ?: "Rodrigo"
-                    val email = lastAccount.email ?: "Rodrigocg2@gmail.com"
-                    val photoUrl = lastAccount.photoUrl?.toString() ?: ""
-                    viewModel.loginWithGoogle(name, email, photoUrl)
+                    try {
+                        val name = lastAccount.displayName ?: "Rodrigo"
+                        val email = lastAccount.email ?: "Rodrigocg2@gmail.com"
+                        val photoUrl = lastAccount.photoUrl?.toString() ?: ""
+                        viewModel.loginWithGoogle(name, email, photoUrl)
+                    } catch (e: Throwable) {
+                        android.util.Log.e("MainActivity", "Safely skipped auto-login account property verification: ", e)
+                    }
                 }
             }
             
@@ -96,7 +100,7 @@ class MainActivity : ComponentActivity() {
                         } else {
                             viewModel.triggerGoogleLoginError("Google Sign-In não inicializado neste dispositivo.")
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         viewModel.triggerGoogleLoginError(e.localizedMessage ?: "Erro ao iniciar Login com Google")
                     } finally {
                         viewModel.resetGoogleLoginTrigger()
